@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "noEmit": true,
+    "target": "es5",
+    "noImplicitAny": true,
+    "experimentalDecorators": true,
+    "sourceMap": true
+  },
+  "files": [
+    "node_modules/aaaa/wow.ts",
+    "index.ts"
+  ]
+}
