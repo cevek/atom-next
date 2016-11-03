@@ -1,4 +1,4 @@
-import {BaseArray} from "./base-array";
+import {AtomArray} from "./atom-array";
 import {prop} from "./prop";
 import {autowatch} from "./autowatch";
 class User {
@@ -24,7 +24,7 @@ class User {
     @prop e8 = '123';
 }
 
-const users = new BaseArray<User>([]);
+const users = new AtomArray<User>([]);
 users.push(new User('Ivan', 'Petrashev'));
 users.push(new User('Alex', 'Keffir'));
 users.push(new User('Sergio', 'Valse'));

@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "noEmit": true,
     "target": "es5",
+    "outDir": "dist",
+    "declaration": true,
     "noImplicitAny": true,
     "experimentalDecorators": true,
-    "sourceMap": true
+    "sourceMap": false
   },
-  "files": [
-    "node_modules/aaaa/wow.ts",
-    "index.ts"
+  "exclude": [
+    "node_modules"
   ]
 }

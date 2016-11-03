@@ -2,9 +2,9 @@
   "name": "atom-next",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -16,8 +16,5 @@
   "bugs": {
     "url": "https://github.com/cevek/atom-next/issues"
   },
-  "homepage": "https://github.com/cevek/atom-next#readme",
-  "dependencies": {
-    "aaaa": "1.0.0"
-  }
+  "homepage": "https://github.com/cevek/atom-next#readme"
 }
