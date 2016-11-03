@@ -1,7 +1,3 @@
-export * from './autowatch';
-export * from './atom-array';
-export * from './prop';
-
 const promise = (window as any).Promise.resolve();
 
 export interface HMap<T>{
@@ -461,6 +457,11 @@ export class Atom {
 Atom.prototype.creatorId = null;
 
 (window as any).debugAtom = Atom.debugAtom;
+
+
+export * from './autowatch';
+export * from './atom-array';
+export * from './prop';
 /*
  const a1 = new Atom().prop('a1', 1);
  const a2 = new Atom().prop('a2', 2);
