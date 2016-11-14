@@ -34,7 +34,7 @@ export class TaskList {
     donePos = 0;
     asyncRunned = false;
     queue:any[];
-    size = 30000;
+    size = 50000;
 
     get list() {
         const items:any = [];
@@ -61,7 +61,7 @@ export class TaskList {
     }
 
     constructor(public taskRunner:()=>void) {
-        this.queue = new Array(this.size);
+        this.queue = [];
     }
 
     static microTaskRunner = (callback: ()=>void)=>promise.then(callback);
