@@ -1,5 +1,5 @@
 import {Atom} from "./index";
-(window as any).AtomGlob = Atom;
+(global as any).AtomGlob = Atom;
 
 const atomPrefix = '_';
 export function getAtomFieldName(prop: string) {
