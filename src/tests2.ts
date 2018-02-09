@@ -1,32 +1,32 @@
-import { Atom, run } from './atom';
+import { Atom, run, AtomValue, AtomCalc } from './atom';
 
-const seed = Atom.value(1, 'seed');
-const b = Atom.calc(() => {
-    return seed.get() + 10 + e.get();
+const seed = new AtomValue(1, 'seed');
+const b = new AtomCalc(() => {
+    return seed.get() + 10;
 }, 'b');
-const c = Atom.calc(() => {
+const c = new AtomCalc(() => {
     return 5 + b.get();
 }, 'c');
-const d = Atom.calc(() => {
+const d = new AtomCalc(() => {
     return c.get();
 }, 'd');
 
-const y = Atom.calc(() => {
-    return Atom.value(103);
+const y = new AtomCalc(() => {
+    return new AtomValue(103);
 });
-// const x = Atom.autorun(() => {
-//     var xx = Atom.value(103, 'inner');
+// const x = AtomCalc.autorun(() => {
+//     var xx = new AtomValue(103, 'inner');
 //     xx.get();
 //     xx.set(100);
 //     run();
 //     debugger;
 // }, 'outer');
 
-const e = Atom.calc(() => {
-    return b.get();
-}, 'e');
+// const e = new AtomCalc(() => {
+//     return b.get();
+// }, 'e');
 
-var autorun = Atom.autorun(() => {
+var autorun = AtomCalc.autorun(() => {
     return d.get();
 }, 'autorun');
 
@@ -36,9 +36,9 @@ var autorun = Atom.autorun(() => {
 // global.c = c;
 // global.d = d;
 
-// console.log(d.get());
+console.log(d.get());
 seed.set(2);
-// seed.set(3);
+seed.set(3);
 
 // // console.log(seed.slaves[0]);
 // // console.log(c);
