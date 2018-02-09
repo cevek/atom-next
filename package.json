@@ -4,8 +4,7 @@
   "description": "",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
-  "scripts": {
-  },
+  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cevek/atom-next.git"
@@ -16,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/cevek/atom-next/issues"
   },
-  "homepage": "https://github.com/cevek/atom-next#readme"
+  "homepage": "https://github.com/cevek/atom-next#readme",
+  "devDependencies": {
+    "typescript": "^2.7.1"
+  }
 }

@@ -1,22 +1,58 @@
 export const enum AtomState {
     ACTUAL = 'ACTUAL',
-    NOT_CALLED = 'NOT_CALLED',
-    PARENTS_MAYBE_UPDATED = 'PARENTS_MAYBE_UPDATED',
+    MAYBE_DIRTY = 'MAYBE_DIRTY',
 }
 
 let activeChildAtom: Atom;
 
-interface Transaction {
-    changes: number[];
-    transactionId: number;
-    changesLength: number;
+class Transaction {
+    changes: number[] = [];
+    changesLength = 0;
+    constructor(public transactionId: number, public atom?: Atom) {}
 }
-const transactionStack = {
-    stack: [] as Transaction[],
-    stackLength: 0,
-};
-let currentTransaction: Transaction;
-let transactionId = 0;
+
+class TransactionManager {
+    private transactionIdIdx = 0;
+    current = new Transaction(this.transactionIdIdx++, undefined);
+    private stack: Transaction[] = [this.current];
+    private pos = 0;
+    start(atom: Atom) {
+        if (this.pos === this.stack.length - 1) {
+            this.stack.push(new Transaction(this.transactionIdIdx++, atom));
+        }
+        this.possibleToUseAtomAsSlave(atom);
+        this.current = this.stack[++this.pos];
+        this.current.changesLength = atom.masters.length;
+        this.current.atom = atom;
+        if (this.current.changesLength > this.current.changes.length) {
+            this.current.changes[this.current.changesLength - 1] = -1;
+        }
+    }
+
+    end() {
+        this.current.atom = void 0;
+        this.current = this.stack[--this.pos];
+    }
+
+    possibleToUseAtomAsSlave(atom: Atom) {
+        for (let i = 1; i <= this.pos; i++) {
+            const transaction = this.stack[i];
+            if (transaction.atom === atom) {
+                const path = [];
+                for (let j = i; j <= this.pos; j++) {
+                    path.push(this.stack[j].atom!.name);
+                }
+                throw new Error(`Cyclic dependency detected: ${path.join('->')}`);
+            }
+            if (transaction.transactionId === atom.createdInTransaction) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+const trxManager = new TransactionManager();
 
 const updateList = { list: [] as Atom[], pos: 0 };
 
@@ -29,26 +65,6 @@ export function run() {
     updateList.pos = 0;
 }
 
-function startTransaction(len: number) {
-    if (transactionStack.stackLength === 0) {
-        transactionStack.stack[transactionStack.stackLength++] = {
-            changes: [],
-            transactionId: 0,
-            changesLength: 0,
-        };
-    }
-    currentTransaction = transactionStack.stack[--transactionStack.stackLength];
-    currentTransaction.changesLength = len;
-    if (currentTransaction.changesLength > currentTransaction.changes.length) {
-        currentTransaction.changes[currentTransaction.changesLength - 1] = -1;
-    }
-    currentTransaction.transactionId = transactionId++;
-}
-
-function endTransaction() {
-    transactionStack.stack[transactionStack.stackLength++] = currentTransaction;
-}
-
 export class Atom<T = {}> {
     slaves?: Atom[] = void 0;
     masters: (Atom | {})[] = undefined!;
@@ -56,6 +72,7 @@ export class Atom<T = {}> {
     value: T = undefined!;
     state: AtomState = AtomState.ACTUAL;
     name?: string;
+    createdInTransaction = trxManager.current.transactionId;
 
     constructor() {}
 
@@ -70,8 +87,7 @@ export class Atom<T = {}> {
         const atom = new Atom<T>();
         atom.name = name;
         atom.calcFun = fn;
-        atom.state = AtomState.NOT_CALLED;
-        atom.masters = [];
+        atom.state = AtomState.MAYBE_DIRTY;
         return atom;
     }
 
@@ -102,19 +118,24 @@ export class Atom<T = {}> {
     }
 
     actualize() {
-        if (this.state === AtomState.ACTUAL) return;
-        this.calc(false);
+        console.log('actualize', this.name, this.state, this.value);
+        if (this.state === AtomState.MAYBE_DIRTY) {
+            this.calc(false);
+        }
         if (this.slaves !== void 0) {
             loop: for (let i = 0; i < this.slaves.length; i++) {
                 const child = this.slaves[i];
                 for (let i = 0; i < child.masters.length; i += 2) {
                     const master = child.masters[i] as Atom;
+                    // console.log('master', master);
                     if (master === child) continue;
-                    if (master.state === AtomState.PARENTS_MAYBE_UPDATED) {
+                    if (master.state === AtomState.MAYBE_DIRTY) {
                         continue loop;
                     }
                 }
-                child.actualize();
+                if (child.state !== AtomState.ACTUAL) {
+                    child.actualize();
+                }
             }
         }
     }
@@ -124,7 +145,7 @@ export class Atom<T = {}> {
             for (let i = 0; i < this.slaves.length; i++) {
                 const child = this.slaves[i];
                 if (child.state === AtomState.ACTUAL) {
-                    child.state = AtomState.PARENTS_MAYBE_UPDATED;
+                    child.state = AtomState.MAYBE_DIRTY;
                     child.setChildrenMaybeState();
                 }
             }
@@ -142,8 +163,8 @@ export class Atom<T = {}> {
 
     processTransaction() {
         let shift = 0;
-        for (let i = 0; i < currentTransaction.changesLength; i += 2) {
-            if (currentTransaction.changes[i] !== currentTransaction.transactionId) {
+        for (let i = 0; i < trxManager.current.changesLength; i += 2) {
+            if (trxManager.current.changes[i] !== trxManager.current.transactionId) {
                 const parent = this.masters[i - shift] as Atom;
                 parent.removeChild(this);
                 this.masters.splice(i - shift, 2);
@@ -153,9 +174,7 @@ export class Atom<T = {}> {
     }
 
     calc(setChildrenMaybeState: boolean) {
-        let prevActiveAtom = activeChildAtom;
-        activeChildAtom = this;
-        startTransaction(this.masters.length);
+        trxManager.start(this);
         console.log('precalc', this.name, this.value);
         try {
             const newValue = this.calcFun!();
@@ -168,15 +187,18 @@ export class Atom<T = {}> {
             this.value = newValue;
             return hasChanged;
         } finally {
-            endTransaction();
-            activeChildAtom = prevActiveAtom;
+            trxManager.end();
             console.log('postcalc', this.name, this.value);
         }
     }
 
     calcIfNeeded() {
         console.log('calcIfNeeded', this.name, this.state, this.value);
-        if (this.state === AtomState.PARENTS_MAYBE_UPDATED) {
+        if (this.state === AtomState.MAYBE_DIRTY) {
+            if (this.masters === void 0) {
+                this.masters = [];
+                return this.calc(true);
+            }
             for (let i = 0; i < this.masters.length; i += 2) {
                 const parent = this.masters[i] as Atom;
                 const value = this.masters[i + 1];
@@ -187,8 +209,6 @@ export class Atom<T = {}> {
                 }
             }
             this.state = AtomState.ACTUAL;
-        } else if (this.state === AtomState.NOT_CALLED) {
-            return this.calc(true);
         }
         return false;
     }
@@ -219,12 +239,16 @@ export class Atom<T = {}> {
     }
 
     processMaster() {
-        if (activeChildAtom !== void 0) {
-            const foundPos = activeChildAtom.addParent(this);
+        const { current } = trxManager;
+        if (current.atom !== void 0) {
+            // if (!trxManager.possibleToUseAtomAsSlave(this)) {
+            //     return;
+            // }
+            const foundPos = current.atom.addParent(this);
             if (foundPos === -1) {
-                this.addChild(activeChildAtom);
+                this.addChild(current.atom);
             } else {
-                currentTransaction.changes[foundPos] = currentTransaction.transactionId;
+                current.changes[foundPos] = current.transactionId;
             }
         }
     }
