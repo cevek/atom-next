@@ -18,5 +18,11 @@
   "homepage": "https://github.com/cevek/atom-next#readme",
   "devDependencies": {
     "typescript": "^2.7.1"
+  },
+  "dependencies": {
+    "@types/prop-types": "^15.5.2",
+    "@types/react": "^16.0.40",
+    "prop-types": "^15.6.1",
+    "react": "^16.2.0"
   }
 }
