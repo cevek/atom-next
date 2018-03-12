@@ -1,4 +1,3 @@
-import { ArrayProxy } from './ArrayAtomTree';
 import { AtomProxy } from './AtomProxy';
 
 export type Store<T> = {
@@ -24,9 +23,8 @@ export class Glob {
     usingProxies: (AtomProxy | AtomValue)[] | undefined = undefined;
     globRootStore: RootStore | undefined = undefined;
     globParent: AtomProxy | undefined = undefined;
+    globField: Field | undefined = undefined;
     globKey: string | number | undefined = undefined;
-    globFactory: Factory | undefined = undefined;
-
     id = 1;
     arrayVersion = 0;
     inTransaction = false;
@@ -35,9 +33,11 @@ export class Glob {
 
 export const glob = new Glob();
 
-export interface Factory {
-    Class: typeof AtomProxy;
-    elementFactory: Factory | undefined;
+export interface Field {
+    name: string;
+    idx: number;
+    Class: typeof AtomProxy | undefined;
+    elementFactory: typeof AtomProxy | undefined;
 }
 
 export interface CustomStore extends Store<{}> {
@@ -49,10 +49,10 @@ export interface ActionCreator {
 
     reducer: (payload: {}) => void;
 }
-
-function isArray<T, K>(arr: T[] | K): arr is T[] {
-    return arr instanceof Array;
-}
+//
+// function isArray<T, K>(arr: T[] | K): arr is T[] {
+//     return arr instanceof Array;
+// }
 
 function _detachAll(proxy: AtomProxy) {
     for (let i = 0; i < proxy._values.length; i++) {
@@ -62,40 +62,39 @@ function _detachAll(proxy: AtomProxy) {
 }
 
 function _cloneTarget(proxy: AtomProxy): Target {
-    return {};
+    return Object.assign({}, proxy._target);
 }
 
 export function buildAtomProxy(
     rootStore: RootStore | undefined,
     parent: AtomProxy,
-    keyIdx: number,
-    key: string | number,
-    target: Target
+    field: Field,
+    target: Target,
+    key: number | string = field.name
 ) {
     target = getRawValueIfExists(target);
-    const factory = parent._factoryClasses[keyIdx];
-    if (factory === void 0) {
+    if (field.Class === void 0) {
         return new AtomValue(target);
     }
     const prevInInitializing = glob.inInitializing;
     const prevInTransaction = glob.inTransaction;
     glob.inInitializing = true;
     glob.inTransaction = true;
+    glob.globField = field;
     glob.globKey = key;
     glob.globRootStore = rootStore;
-    glob.globFactory = factory;
     glob.globParent = parent;
     try {
-        const proxy = new factory.Class();
+        const proxy = new field.Class();
         proxy._setTarget(target);
         return proxy;
     } finally {
         glob.inInitializing = prevInInitializing;
         glob.inTransaction = prevInTransaction;
-        glob.globKey = undefined;
         glob.globRootStore = undefined;
-        glob.globFactory = undefined;
         glob.globParent = undefined;
+        glob.globField = undefined;
+        glob.globKey = undefined;
     }
 }
 
@@ -143,14 +142,22 @@ function convertPayloadPlainObjectToNormal(payload: Index | undefined, instanceM
     return payload;
 }
 
+export function _initialize(root: AtomProxy) {
+    for (let i = 0; i < root._values.length; i++) {
+        const value = initValueIfNeeded(root, i);
+        if (value instanceof AtomProxy) {
+            _initialize(root._values[i] as AtomProxy);
+        }
+    }
+}
 export class RootStore extends AtomProxy {
     _reducers = new Map<string, (payload: {}) => void>();
     _reduxStore!: CustomStore;
     _instanceMap = new Map<string, AtomProxy>();
-    _factoryClasses: (Factory | undefined)[] = [];
+    // _factoryClasses: (Factory | undefined)[] = [];
     _factoryMap = new Map<string, number>();
     _stores: typeof BaseStore[];
-    _fields: string[] = [];
+    _fields: Field[] = [];
     _values: (AtomProxy | AtomValue | undefined)[] = [];
     _path = 'root';
 
@@ -165,20 +172,11 @@ export class RootStore extends AtomProxy {
         });
     }
 
-    _initialize(root: AtomProxy) {
-        for (let i = 0; i < root._values.length; i++) {
-            const value = initValueIfNeeded(root, i);
-            if (value instanceof AtomProxy) {
-                this._initialize(root._values[i] as AtomProxy);
-            }
-        }
-    }
-
     _replaceState(target: Target | undefined) {
         glob.inInitializing = true;
         try {
             _detachAll(this);
-            this._initialize(this);
+            _initialize(this);
             if (target !== undefined) {
                 this._setTarget(target);
             }
@@ -193,7 +191,7 @@ export class RootStore extends AtomProxy {
             proxy._path = proxy._parent._path + '.' + proxy._key;
             this._instanceMap.set(proxy._path, proxy);
             for (let i = 0; i < proxy._values.length; i++) {
-                this._makePathAndAddToStorage(proxy._values[i], proxy._fields[i]);
+                this._makePathAndAddToStorage(proxy._values[i], proxy._fields[i].name);
             }
         }
     }
@@ -226,15 +224,14 @@ export class RootStore extends AtomProxy {
         this._reduxStore.dispatch(action);
     }
 
-    constructor(stores: typeof BaseStore[]) {
+    constructor(stores: (new () => {})[]) {
         super();
-        this._stores = stores;
+        this._stores = stores as (typeof BaseStore)[];
         this._rootStore = this;
         this._stores.forEach((Store, i) => {
-            this._registerReducersFromClass(Store);
             this._factoryMap.set(Store.name, i);
-            this._factoryClasses.push({ Class: Store, elementFactory: undefined });
-            this._fields.push(Store.name);
+            this._registerReducersFromClass(Store);
+            this._fields.push({ name: Store.name, idx: i, Class: Store, elementFactory: undefined });
             this._values.push(void 0);
         });
     }
@@ -255,31 +252,25 @@ export class RootStore extends AtomProxy {
         const methods = Object.getOwnPropertyNames(proto);
         for (let i = 0; i < methods.length; i++) {
             const method = methods[i];
-            if (
-                proto._excludedMethods.indexOf(method) === -1 &&
-                method[0] !== '_' &&
-                method !== 'constructor' &&
-                method !== 'cloneTarget'
-            ) {
+            if (method[0] !== '_' && method !== 'constructor' && method !== 'cloneTarget') {
                 const descriptor = Object.getOwnPropertyDescriptor(proto, method)!;
                 const reducer = descriptor.value;
                 if (typeof reducer === 'function') {
-                    const name = Ctor.name + '.' + method;
+                    const name = Ctor.displayName + '.' + method;
                     if (this._reducers.has(name)) {
                         throw new Error('Reducer name collision: ' + name);
                     }
-                    this._reducers.set(Ctor.name + '.' + method, ((proto as Index)[method] as ActionCreator).reducer);
+                    this._reducers.set(name, ((proto as Index)[method] as ActionCreator).reducer);
                 }
             }
         }
-        for (let i = 0; i < proto._factoryClasses.length; i++) {
-            const factory = proto._factoryClasses[i];
-            if (factory !== undefined) {
-                this._registerReducersFromClass(factory.Class);
-                if (factory.elementFactory !== undefined) {
-                    // todo: need to rethink
-                    this._registerReducersFromClass(factory.elementFactory.Class);
-                }
+        for (let i = 0; i < proto._fields.length; i++) {
+            const field = proto._fields[i];
+            if (field.Class !== undefined) {
+                this._registerReducersFromClass(field.Class);
+            }
+            if (field.elementFactory !== undefined) {
+                this._registerReducersFromClass(field.elementFactory);
             }
         }
     }
@@ -335,11 +326,11 @@ export function putProxyToUsing(proxy: AtomValue | AtomProxy) {
     }
 }
 
-export function getValue(proxy: AtomProxy, keyIdx: number) {
+export function getValue(proxy: AtomProxy, field: Field) {
     if (!proxy._attached) {
         //todo:
     }
-    const childProxy = initValueIfNeeded(proxy, keyIdx);
+    const childProxy = initValueIfNeeded(proxy, field.idx);
     if (proxy._attached) {
         putProxyToUsing(childProxy);
     }
@@ -349,8 +340,8 @@ export function getValue(proxy: AtomProxy, keyIdx: number) {
 export function initValueIfNeeded(proxy: AtomProxy, keyIdx: number) {
     let childProxy = proxy._values[keyIdx];
     if (childProxy === void 0) {
-        const key = proxy._fields[keyIdx];
-        childProxy = buildAtomProxy(proxy._rootStore, proxy, keyIdx, key, proxy._target[key]);
+        const field = proxy._fields[keyIdx];
+        childProxy = buildAtomProxy(proxy._rootStore, proxy, field, proxy._target[field.name]);
         proxy._values[keyIdx] = childProxy;
     }
     return childProxy;
@@ -370,7 +361,7 @@ export function getRawValueIfExists(value: AtomProxy | AtomValue | Target): Targ
     return value;
 }
 
-export function setValue(proxy: AtomProxy, keyIdx: number, key: string, value: Target) {
+export function setValue(proxy: AtomProxy, field: Field, value: Target) {
     checkWeAreInTransaction();
     // if (inInitializing && initWithState) {
     //     return;
@@ -378,10 +369,10 @@ export function setValue(proxy: AtomProxy, keyIdx: number, key: string, value: T
     if (!proxy._attached) {
         //todo:
     }
-
-    rebuildTarget(proxy, key, value);
+    const keyIdx = field.idx;
+    rebuildTarget(proxy, field.name, value);
     detach(proxy._values[keyIdx]);
-    proxy._values[keyIdx] = buildAtomProxy(proxy._rootStore, proxy, keyIdx, key, value);
+    proxy._values[keyIdx] = buildAtomProxy(proxy._rootStore, proxy, proxy._fields[keyIdx], value);
 }
 
 export function actionCreatorFactory(type: string, reducer: () => void) {
@@ -399,59 +390,59 @@ export function actionCreatorFactory(type: string, reducer: () => void) {
     actionCreator.reducer = reducer;
     return actionCreator;
 }
-
-export function prepareEntity<T>(
-    Ctor: typeof AtomProxy & { new (): T },
-    fields: (keyof T)[],
-    excludedMethods: (keyof T)[],
-    factories: { [key: string]: typeof AtomProxy | typeof AtomProxy[] }
-) {
-    const methods = Object.getOwnPropertyNames(Ctor.prototype);
-    for (let i = 0; i < methods.length; i++) {
-        const methodName = methods[i];
-        if ((excludedMethods as string[]).indexOf(methodName) === -1 && methodName !== 'constructor') {
-            const descriptor = Object.getOwnPropertyDescriptor(Ctor.prototype, methodName)!;
-            if (typeof descriptor.value === 'function') {
-                (Ctor.prototype as Index)[methodName] = actionCreatorFactory(
-                    Ctor.name + '.' + methodName,
-                    descriptor.value
-                );
-            }
-        }
-    }
-    const factoriesItems = new Array<Factory>(fields.length);
-    for (let i = 0; i < fields.length; i++) {
-        const field = fields[i];
-        const factoryField = factories[field] as typeof AtomProxy | (typeof AtomProxy)[];
-        if (factoryField) {
-            factoriesItems[i] = isArray(factoryField)
-                ? {
-                      Class: ArrayProxy,
-                      elementFactory: {
-                          Class: factoryField[0],
-                          elementFactory: undefined,
-                      },
-                  }
-                : { Class: factoryField, elementFactory: undefined };
-        }
-        Object.defineProperty(Ctor.prototype, field, {
-            get: function(this: AtomProxy) {
-                return getValue(this, i);
-            },
-            set: function(this: AtomProxy, value: Target) {
-                setValue(this, i, field, value);
-            },
-        });
-    }
-    Ctor.prototype._fields = fields;
-    Ctor.prototype._excludedMethods = excludedMethods;
-    Ctor.prototype._factoryClasses = factoriesItems;
-    Ctor.prototype._cloneTarget = function(this: AtomProxy) {
-        let copy: Target = {};
-        for (let i = 0; i < fields.length; i++) {
-            const field = fields[i];
-            copy[field] = this._target[field];
-        }
-        return copy;
-    };
-}
+//
+// export function prepareEntity<T>(
+//     Ctor: typeof AtomProxy & { new (): T },
+//     fields: (keyof T)[],
+//     excludedMethods: (keyof T)[],
+//     factories: { [key: string]: typeof AtomProxy | typeof AtomProxy[] }
+// ) {
+//     const methods = Object.getOwnPropertyNames(Ctor.prototype);
+//     for (let i = 0; i < methods.length; i++) {
+//         const methodName = methods[i];
+//         if ((excludedMethods as string[]).indexOf(methodName) === -1 && methodName !== 'constructor') {
+//             const descriptor = Object.getOwnPropertyDescriptor(Ctor.prototype, methodName)!;
+//             if (typeof descriptor.value === 'function') {
+//                 (Ctor.prototype as Index)[methodName] = actionCreatorFactory(
+//                     Ctor.name + '.' + methodName,
+//                     descriptor.value
+//                 );
+//             }
+//         }
+//     }
+//     const factoriesItems = new Array<Factory>(fields.length);
+//     for (let i = 0; i < fields.length; i++) {
+//         const field = fields[i];
+//         const factoryField = factories[field] as typeof AtomProxy | (typeof AtomProxy)[];
+//         if (factoryField) {
+//             factoriesItems[i] = isArray(factoryField)
+//                 ? {
+//                       Class: ArrayProxy,
+//                       elementFactory: {
+//                           Class: factoryField[0],
+//                           elementFactory: undefined,
+//                       },
+//                   }
+//                 : { Class: factoryField, elementFactory: undefined };
+//         }
+//         Object.defineProperty(Ctor.prototype, field, {
+//             get: function(this: AtomProxy) {
+//                 return getValue(this, i);
+//             },
+//             set: function(this: AtomProxy, value: Target) {
+//                 setValue(this, i, field, value);
+//             },
+//         });
+//     }
+//     Ctor.prototype._fields = fields;
+//     Ctor.prototype._excludedMethods = excludedMethods;
+//     Ctor.prototype._factoryClasses = factoriesItems;
+//     Ctor.prototype._cloneTarget = function(this: AtomProxy) {
+//         let copy: Target = {};
+//         for (let i = 0; i < fields.length; i++) {
+//             const field = fields[i];
+//             copy[field] = this._target[field];
+//         }
+//         return copy;
+//     };
+// }

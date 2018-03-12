@@ -4,7 +4,7 @@ import {
     buildAtomProxy,
     checkWeAreInTransaction,
     detach,
-    Factory,
+    Field,
     getProxyOrRawValue,
     glob,
     Index,
@@ -40,9 +40,10 @@ function _updateVersion(proxy: ArrayProxy) {
 }
 
 function _makeArrayTargetsToProxy(proxy: ArrayProxy, arr: (Target | undefined)[], idxStart: number) {
+    const field = proxy._fields[0];
     let newArr: (AtomProxy | AtomValue)[] = new Array(arr.length);
     for (let i = 0; i < arr.length; i++) {
-        newArr[i] = buildAtomProxy(proxy._rootStore, proxy, 0, idxStart + i, arr[i]!);
+        newArr[i] = buildAtomProxy(proxy._rootStore, proxy, field, arr[i]!, idxStart + i);
     }
     return newArr;
 }
@@ -53,28 +54,27 @@ function _checkToExit(proxy: ArrayProxy) {
 }
 
 export class ArrayProxy extends AtomProxy {
-    _factoryClasses: (Factory | undefined)[] = [undefined];
-
+    _fields: Field[] = [undefined!];
     _target: ArrayTarget;
     _version: AtomValue = undefined!;
-    // _values = [];
 
     length: number = 0;
 
     constructor() {
         super();
-        if (glob.globFactory === undefined) {
-            throw new Error('Factory is empty');
+        if (glob.globField === undefined) {
+            throw new Error('Field is empty');
         }
-        if (glob.globFactory.elementFactory === undefined) {
+        if (glob.globField.elementFactory === undefined) {
             throw new Error('Array element Factory is not specified');
         }
-        this._factoryClasses[0] = glob.globFactory.elementFactory;
+        this._fields[0] = { name: 'element', idx: -1, Class: glob.globField.elementFactory, elementFactory: undefined };
         this._target = [];
         _updateVersion(this);
     }
 
     _setTarget(target: ArrayTarget) {
+        const field = this._fields[0];
         if (glob.inInitializing) {
             if (target instanceof Array) {
                 const min = Math.min(this._values.length, target.length);
@@ -88,7 +88,7 @@ export class ArrayProxy extends AtomProxy {
                     detach(this._values[i]);
                 }
                 for (let i = min; i < target.length; i++) {
-                    this._values[i] = buildAtomProxy(this._rootStore, this, 0, i, target[i]);
+                    this._values[i] = buildAtomProxy(this._rootStore, this, field, target[i]);
                 }
                 this._values.length = target.length;
                 _updateVersion(this);

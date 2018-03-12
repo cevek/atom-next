@@ -1,10 +1,10 @@
-import {  BaseStore, prepareEntity } from '../AtomTree';
 import * as React from 'react';
 import { component } from '../Component';
-import { AtomProxy } from '../AtomProxy';
+import { array, root } from '../reflect/store';
 
-export class Todo extends AtomProxy {
-    content!: string;
+@root
+export class Todo {
+    content = '';
     isDone: boolean = false;
 
     toggle() {
@@ -16,12 +16,13 @@ export class Todo extends AtomProxy {
     }
 }
 
-prepareEntity(Todo, ['isDone', 'content'], [], {});
+// prepareEntity(Todo, ['isDone', 'content'], [], {});
 
 let id = 0;
 
-export class TodoStore extends BaseStore {
-    todos: Todo[] = [];
+@root
+export class TodoStore {
+    todos = array(Todo, []);
 
     addTodo(content: string) {
         const todo = new Todo();
@@ -31,7 +32,6 @@ export class TodoStore extends BaseStore {
     }
 
     constructor() {
-        super();
         const todo = new Todo();
         todo.content = 'Foo';
         this.todos.push(todo);
@@ -57,7 +57,11 @@ export class TodoStore extends BaseStore {
     }
 }
 
-prepareEntity(TodoStore, ['todos'], ['loadTodo'], { todos: [Todo] });
+console.dir(Todo);
+console.dir(TodoStore);
+
+
+// prepareEntity(TodoStore, ['todos'], ['loadTodo'], { todos: [Todo] });
 
 export const TodoList = component(TodoStore)<{}>((props, store) => {
     console.log(store.todos);

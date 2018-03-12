@@ -1,6 +1,7 @@
-import { AtomValue, Factory, glob, initValueIfNeeded, RootStore, Target } from './AtomTree';
+import { AtomValue, Field, glob, initValueIfNeeded, RootStore, Target } from './AtomTree';
 
 export class AtomProxy {
+    static displayName: string;
     constructor() {
         this._rootStore = glob.globRootStore;
         this._parent = glob.globParent;
@@ -13,6 +14,7 @@ export class AtomProxy {
 
     _id = glob.id++;
     _path: string = '';
+    _key: string | number = '';
     _parent: AtomProxy | undefined = void 0;
     _target: Target = {};
     _rootStore: RootStore | undefined = void 0;
@@ -30,7 +32,6 @@ export class AtomProxy {
     // }
 
     // _keyIdx: number;
-    _key: string | number = '';
     _attached = true;
     _values: (AtomProxy | AtomValue | undefined)[];
 
@@ -41,7 +42,7 @@ export class AtomProxy {
                 for (let i = 0; i < this._fields.length; i++) {
                     const field = this._fields[i];
                     const value = initValueIfNeeded(this, i);
-                    value._setTarget(target[field]);
+                    value._setTarget(target[field.name]);
                 }
             }
         } else {
@@ -50,11 +51,7 @@ export class AtomProxy {
     }
 
     /* prototype fields */
-    _fields!: string[];
-    _excludedMethods!: string[];
-    _factoryClasses!: (Factory | undefined)[];
+    _fields!: Field[];
 }
 
 AtomProxy.prototype._fields = [];
-AtomProxy.prototype._factoryClasses = [];
-AtomProxy.prototype._excludedMethods = [];
