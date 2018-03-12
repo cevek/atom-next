@@ -1,0 +1,36 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: sans-serif;
+}
+
+.textarea {
+    width: calc(50% - 10px);
+    height: 500px;
+    outline: none;
+    padding: 20px;
+}
+
+.textarea--ru {
+    margin-left: 20px;
+}
+
+.line {
+    margin: 20px auto;
+    max-width: 600px;
+}
+
+.line__en {
+
+}
+
+.line__ru {
+    font-size: 8px;
+    color: silver;
+    margin-top: 3px;
+    line-height: 1.5;
+}
