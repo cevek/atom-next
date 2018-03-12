@@ -8,6 +8,8 @@ import { array, root, maybe } from './store';
 //
 // My({ a: 1, channelId: 1 });
 
+connect;
+
 type StateProps = Pick<State, 'b' | 'c'> & Pick<RegisterStore, 'isVisible' | 'setVisible'>;
 
 function Register(props: { a: number } & StateProps) {

@@ -1,4 +1,4 @@
-import { Atom, run, AtomValue, AtomCalc } from './atom';
+import { Atom, run, AtomValue, AtomCalc } from '../atom';
 
 const seed = new AtomValue(1, 'seed');
 const b = new AtomCalc(() => {
