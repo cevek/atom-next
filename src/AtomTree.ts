@@ -1,3 +1,6 @@
+import { ArrayProxy } from './ArrayAtomTree';
+import { AtomProxy } from './AtomProxy';
+
 export type Store<T> = {
     getState(): T;
     subscribe(callback: () => void): () => void;
@@ -17,19 +20,20 @@ export class AtomValue {
     }
 }
 
-let id = 1;
-let arrayVersion = 0;
-let inTransaction = false;
-let inInitializing = false;
+export class Glob {
+    usingProxies: (AtomProxy | AtomValue)[] | undefined = undefined;
+    globRootStore: RootStore | undefined = undefined;
+    globParent: AtomProxy | undefined = undefined;
+    globKey: string | number | undefined = undefined;
+    globFactory: Factory | undefined = undefined;
 
-export const glob: { usingProxies: (AtomProxy | AtomValue)[] | undefined } = {
-    usingProxies: void 0,
-};
+    id = 1;
+    arrayVersion = 0;
+    inTransaction = false;
+    inInitializing = false;
+}
 
-let globRootStore: RootStore | undefined;
-let globParent: AtomProxy | undefined;
-let globKey: string | number | undefined;
-let globFactory: Factory | undefined;
+export const glob = new Glob();
 
 export interface Factory {
     Class: typeof AtomProxy;
@@ -50,81 +54,18 @@ function isArray<T, K>(arr: T[] | K): arr is T[] {
     return arr instanceof Array;
 }
 
-function createArray<T>(length: number) {
-    return Array<T>(length);
+function _detachAll(proxy: AtomProxy) {
+    for (let i = 0; i < proxy._values.length; i++) {
+        detach(proxy._values[i]);
+        proxy._values[i] = void 0;
+    }
 }
 
-export class AtomProxy {
-    constructor() {
-        this._rootStore = globRootStore;
-        this._parent = globParent;
-        this._target = {};
-        this._values = Array(this._fields.length);
-        if (globRootStore !== void 0) {
-            globRootStore._makePathAndAddToStorage(this, globKey!);
-        }
-    }
-
-    _id = id++;
-    _path: string = '';
-    _parent: AtomProxy | undefined = void 0;
-    _target: Target = {};
-    _rootStore: RootStore | undefined = void 0;
-    //
-    // _getRootStore() {
-    //     let rootStore: RootStore | void 0 = this.__rootStore;
-    //     if (rootStore === void 0) {
-    //         let parent = this._parent;
-    //         while (parent !== void 0 && rootStore === void 0) {
-    //             rootStore = parent.__rootStore;
-    //         }
-    //         this.__rootStore = rootStore;
-    //     }
-    //     return rootStore;
-    // }
-
-    // _keyIdx: number;
-    _key: string | number = '';
-    _attached = true;
-    _values: (AtomProxy | AtomValue | undefined)[];
-
-    _setTarget(target: Target) {
-        if (inInitializing) {
-            if (typeof target === 'object' && target !== null && target.constructor === Object) {
-                this._target = target;
-                for (let i = 0; i < this._fields.length; i++) {
-                    const field = this._fields[i];
-                    const value = initValueIfNeeded(this, i);
-                    value._setTarget(target[field]);
-                }
-            }
-        } else {
-            throw new Error('Cannot set target');
-        }
-    }
-
-    _detachAll() {
-        for (let i = 0; i < this._values.length; i++) {
-            detach(this._values[i]);
-            this._values[i] = void 0;
-        }
-    }
-
-    _cloneTarget(): Target {
-        return {};
-    }
-
-    /* prototype fields */
-    _fields!: string[];
-    _excludedMethods!: string[];
-    _factoryClasses!: (Factory | undefined)[];
+function _cloneTarget(proxy: AtomProxy): Target {
+    return {};
 }
 
-AtomProxy.prototype._fields = [];
-AtomProxy.prototype._factoryClasses = [];
-AtomProxy.prototype._excludedMethods = [];
-
-function buildAtomProxy(
+export function buildAtomProxy(
     rootStore: RootStore | undefined,
     parent: AtomProxy,
     keyIdx: number,
@@ -136,25 +77,25 @@ function buildAtomProxy(
     if (factory === void 0) {
         return new AtomValue(target);
     }
-    const prevInInitializing = inInitializing;
-    const prevInTransaction = inTransaction;
-    inInitializing = true;
-    inTransaction = true;
-    globKey = key;
-    globRootStore = rootStore;
-    globFactory = factory;
-    globParent = parent;
+    const prevInInitializing = glob.inInitializing;
+    const prevInTransaction = glob.inTransaction;
+    glob.inInitializing = true;
+    glob.inTransaction = true;
+    glob.globKey = key;
+    glob.globRootStore = rootStore;
+    glob.globFactory = factory;
+    glob.globParent = parent;
     try {
         const proxy = new factory.Class();
         proxy._setTarget(target);
         return proxy;
     } finally {
-        inInitializing = prevInInitializing;
-        inTransaction = prevInTransaction;
-        globKey = undefined;
-        globRootStore = undefined;
-        globFactory = undefined;
-        globParent = undefined;
+        glob.inInitializing = prevInInitializing;
+        glob.inTransaction = prevInTransaction;
+        glob.globKey = undefined;
+        glob.globRootStore = undefined;
+        glob.globFactory = undefined;
+        glob.globParent = undefined;
     }
 }
 
@@ -234,15 +175,15 @@ export class RootStore extends AtomProxy {
     }
 
     _replaceState(target: Target | undefined) {
-        inInitializing = true;
+        glob.inInitializing = true;
         try {
-            this._detachAll();
+            _detachAll(this);
             this._initialize(this);
             if (target !== undefined) {
                 this._setTarget(target);
             }
         } finally {
-            inInitializing = false;
+            glob.inInitializing = false;
         }
     }
 
@@ -262,13 +203,13 @@ export class RootStore extends AtomProxy {
         if (reducer !== void 0) {
             const instance = this._instanceMap.get(action.path!);
             if (instance !== void 0) {
-                const prevInTransaction = inTransaction;
-                inTransaction = true;
+                const prevInTransaction = glob.inTransaction;
+                glob.inTransaction = true;
                 try {
                     reducer.call(instance, convertPayloadPlainObjectToNormal(action.payload, this._instanceMap));
                     return this._target;
                 } finally {
-                    inTransaction = prevInTransaction;
+                    glob.inTransaction = prevInTransaction;
                 }
             } else {
                 throw new Error('You try to use a detached object from the state tree');
@@ -344,190 +285,18 @@ export class RootStore extends AtomProxy {
     }
 }
 
-class ArrayProxy extends AtomProxy {
-    _factoryClasses: (Factory | undefined)[] = [undefined];
-
-    _target: ArrayTarget;
-    _version: AtomValue = undefined!;
-    // _values = [];
-
-    length: number = 0;
-
-    constructor() {
-        super();
-        if (globFactory === undefined) {
-            throw new Error('Factory is empty');
-        }
-        if (globFactory.elementFactory === undefined) {
-            throw new Error('Array element Factory is not specified');
-        }
-        this._factoryClasses[0] = globFactory.elementFactory;
-        this._target = [];
-        this._updateVersion();
-    }
-
-    _commit(start: number, end: number) {
-        const newTarget = new Array(this._values.length) as ArrayTarget;
-        for (let i = 0; i < this._values.length; i++) {
-            newTarget[i] = this._values[i]!._target;
-        }
-        Object.freeze(newTarget);
-        if (this._parent !== void 0) {
-            rebuildTarget(this._parent, this._key, newTarget);
-        }
-        this._target = newTarget;
-        if (this._rootStore !== void 0) {
-            for (let i = start; i < end; i++) {
-                this._rootStore._makePathAndAddToStorage(this._values[i], i);
-            }
-        }
-        this._updateVersion();
-    }
-
-    _updateVersion() {
-        detach(this._version);
-        this._version = new AtomValue(arrayVersion++);
-        this.length = this._values.length;
-    }
-
-    _makeArrayTargetsToProxy(arr: (Target | undefined)[], idxStart: number) {
-        let newArr: (AtomProxy | AtomValue)[] = new Array(arr.length);
-        for (let i = 0; i < arr.length; i++) {
-            newArr[i] = buildAtomProxy(this._rootStore, this, 0, idxStart + i, arr[i]!);
-        }
-        return newArr;
-    }
-
-    _checkToExit() {
-        checkWeAreInTransaction();
-        return false; //inInitializing && initWithState;
-    }
-
-    _setTarget(target: ArrayTarget) {
-        if (inInitializing) {
-            if (target instanceof Array) {
-                const min = Math.min(this._values.length, target.length);
-                for (let i = 0; i < min; i++) {
-                    const value = initValueIfNeeded(this, i);
-                    if (value instanceof AtomProxy) {
-                        value._setTarget(target[i]);
-                    }
-                }
-                for (let i = min; i < this._values.length; i++) {
-                    detach(this._values[i]);
-                }
-                for (let i = min; i < target.length; i++) {
-                    this._values[i] = buildAtomProxy(this._rootStore, this, 0, i, target[i]);
-                }
-                this._values.length = target.length;
-                this._updateVersion();
-            }
-        }
-    }
-
-    push(...items: Target[]) {
-        if (this._checkToExit()) return this._target.length;
-        const ret = this._values.push(...this._makeArrayTargetsToProxy(items, this._values.length));
-        this._commit(0, 0);
-        return ret;
-    }
-
-    unshift(...items: Target[]) {
-        if (this._checkToExit()) return this._target.length;
-        const ret = this._values.unshift(...this._makeArrayTargetsToProxy(items, 0));
-        this._commit(items.length, this._values.length);
-        return ret;
-    }
-
-    pop(): Target | undefined {
-        if (this._checkToExit()) return void 0;
-        const ret = this._values.pop();
-        detach(ret);
-        this._commit(0, 0);
-        return getProxyOrRawValue(ret);
-    }
-
-    shift(): Target | undefined {
-        if (this._checkToExit()) return void 0;
-        const ret = this._values.shift();
-        detach(ret);
-        this._commit(0, this._values.length);
-        return getProxyOrRawValue(ret);
-    }
-
-    reverse() {
-        if (this._checkToExit()) return this;
-        this._values.reverse();
-        this._commit(0, this._values.length);
-        return this;
-    }
-
-    splice(start: number, deleteCount = 0, ...items: Target[]) {
-        if (this._checkToExit()) return this;
-        for (let i = start; i < start + deleteCount; i++) {
-            detach(this._values[i]);
-        }
-        const ret = this._values.splice(start, deleteCount, ...this._makeArrayTargetsToProxy(items, start));
-        this._commit(start, this._values.length);
-        return ret;
-    }
-
-    sort(compareFn: (a: Target | undefined, b: Target | undefined) => number = () => 1) {
-        if (this._checkToExit()) return this;
-        this._values.sort((a, b) => compareFn(getProxyOrRawValue(a), getProxyOrRawValue(b)));
-        this._commit(0, this._values.length);
-        return this;
-    }
-
-    _cloneTarget(): Target {
-        return this._target.slice() as ArrayTarget;
-    }
-}
-
-// ArrayProxy.prototype._excludedMethods = [];
-// ArrayProxy.prototype._fields = [];
-
-const immutableMethods = [
-    'toString',
-    'toLocaleString',
-    'concat',
-    'join',
-    'slice',
-    'indexOf',
-    'lastIndexOf',
-    'every',
-    'some',
-    'forEach',
-    'map',
-    'filter',
-    'reduce',
-    'reduceRight',
-];
-for (let i = 0; i < immutableMethods.length; i++) {
-    const method = immutableMethods[i];
-    const fn = (Array.prototype as Index)[method];
-    (ArrayProxy.prototype as Index)[method] = function(this: ArrayProxy) {
-        putProxyToUsing(this._version);
-        const a = new Array(this._values.length);
-        for (let i = 0; i < this._values.length; i++) {
-            a[i] = getProxyOrRawValue(this._values[i]);
-        }
-        return fn.apply(a, arguments);
-    };
-}
-
 export class BaseStore extends AtomProxy {}
 
-function checkWeAreInTransaction() {
-    if (!inTransaction) {
+export function checkWeAreInTransaction() {
+    if (!glob.inTransaction) {
         throw new Error('You cannot update the state outside of a reducer method');
     }
 }
 
-function rebuildTarget(proxy: AtomProxy, key: string | number, value: Target) {
+export function rebuildTarget(proxy: AtomProxy, key: string | number, value: Target) {
     value = getRawValueIfExists(value);
 
-    let clone = proxy._cloneTarget();
+    let clone = _cloneTarget(proxy);
     clone[key] = value;
     Object.freeze(clone);
     proxy._target = clone;
@@ -536,7 +305,7 @@ function rebuildTarget(proxy: AtomProxy, key: string | number, value: Target) {
     }
 }
 
-function detach(proxy: AtomProxy | AtomValue | undefined) {
+export function detach(proxy: AtomProxy | AtomValue | undefined) {
     if (proxy instanceof AtomProxy) {
         proxy._attached = false;
         // if (proxy._parent !== void 0) {
@@ -558,7 +327,7 @@ function detach(proxy: AtomProxy | AtomValue | undefined) {
     }
 }
 
-function putProxyToUsing(proxy: AtomValue | AtomValue) {
+export function putProxyToUsing(proxy: AtomValue | AtomProxy) {
     if (glob.usingProxies !== void 0) {
         if (glob.usingProxies.indexOf(proxy) === -1) {
             glob.usingProxies.push(proxy);
@@ -566,7 +335,7 @@ function putProxyToUsing(proxy: AtomValue | AtomValue) {
     }
 }
 
-function getValue(proxy: AtomProxy, keyIdx: number) {
+export function getValue(proxy: AtomProxy, keyIdx: number) {
     if (!proxy._attached) {
         //todo:
     }
@@ -587,21 +356,21 @@ export function initValueIfNeeded(proxy: AtomProxy, keyIdx: number) {
     return childProxy;
 }
 
-function getProxyOrRawValue(proxy: AtomProxy | AtomValue | undefined) {
+export function getProxyOrRawValue(proxy: AtomProxy | AtomValue | undefined) {
     if (proxy instanceof AtomValue) {
         return proxy._target;
     }
     return proxy;
 }
 
-function getRawValueIfExists(value: AtomProxy | AtomValue | Target): Target {
+export function getRawValueIfExists(value: AtomProxy | AtomValue | Target): Target {
     if (value instanceof AtomProxy || value instanceof AtomValue) {
         return value._target;
     }
     return value;
 }
 
-function setValue(proxy: AtomProxy, keyIdx: number, key: string, value: Target) {
+export function setValue(proxy: AtomProxy, keyIdx: number, key: string, value: Target) {
     checkWeAreInTransaction();
     // if (inInitializing && initWithState) {
     //     return;
@@ -615,9 +384,9 @@ function setValue(proxy: AtomProxy, keyIdx: number, key: string, value: Target) 
     proxy._values[keyIdx] = buildAtomProxy(proxy._rootStore, proxy, keyIdx, key, value);
 }
 
-function actionCreatorFactory(type: string, reducer: () => void) {
+export function actionCreatorFactory(type: string, reducer: () => void) {
     const actionCreator = function(this: AtomProxy, payload: {}) {
-        if (inTransaction) {
+        if (glob.inTransaction) {
             reducer.call(this, payload);
         } else {
             if (this._rootStore !== void 0) {

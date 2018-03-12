@@ -1,7 +1,8 @@
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 
-import { AtomProxy, AtomValue, CustomStore, glob, Index, initValueIfNeeded } from './AtomTree';
+import { AtomValue, CustomStore, glob, Index, initValueIfNeeded } from './AtomTree';
+import { AtomProxy } from './AtomProxy';
 
 export function component<Store>(StoreCtor: { new (): Store }) {
     return <Props>(cmp: (props: Props & { children?: React.ReactNode }, store: Store) => React.ReactNode) => {
