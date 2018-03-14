@@ -62,7 +62,7 @@ function diffA(a: Item[], b: Item[]): any[] {
     return res;
 }
 
-function diff(a: any, b: any) {
+export function diff(a: any, b: any) {
     if (a === b) {
         return {};
     }
@@ -133,7 +133,7 @@ function never(a: never): never {
 
 const DeletedKey = Symbol('deleted');
 
-function patch(old: any, p: any): any {
+export function patch(old: any, p: any): any {
     // console.log(old, p);
     if (p instanceof Array) {
         const type = p[0] as Code;
@@ -263,6 +263,6 @@ function tests() {
     );
 }
 
-tests();
+// tests();
 
 

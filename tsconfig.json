@@ -6,10 +6,8 @@
         "jsx": "react",
         "strict": true,
         "skipLibCheck": true,
+        "sourceMap": true,
         "experimentalDecorators": true
     },
-    "files": [
-        "src/index.ts",
-        "src/example/index.tsx"
-    ]
+    "files": ["src2/index.ts"]
 }
