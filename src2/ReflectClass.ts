@@ -1,44 +1,35 @@
 export interface ReflectClassResult {
     props: string[];
     prototype: (
-        | { type: 'method'; name: string; method: Function }
-        | { type: 'getter'; name: string; get?: Function; set?: Function }
+        | { type: 'method' | 'getter' | 'setter'; name: string; value: Function }
         | { type: 'prop'; name: string; value: any })[];
 }
 
 export function reflectClass(Class: Function): ReflectClassResult {
+    const prototype = getPrototypeInfo(Class);
+    const props = parseFieldsFromCtor(Class, prototype);
     return {
-        props: parseFieldsFromCtor(Class),
-        prototype: getPrototypeInfo(Class),
+        props,
+        prototype,
     };
 }
 
-function parseFieldsFromCtor(Class: Function) {
-    const methodsNames = Object.getOwnPropertyNames(Class.prototype);
+function parseFieldsFromCtor(Class: Function, prototype: ReflectClassResult['prototype']) {
     let source = Class.toString();
-    const methods: Function[] = [];
-    for (let i = 0; i < methodsNames.length; i++) {
-        const method = methodsNames[i];
-        if (method === 'constructor') continue;
-        const descr = Object.getOwnPropertyDescriptor(Class.prototype, method)!;
-        if (typeof descr.get === 'function') methods.push(descr.get);
-        if (typeof descr.set === 'function') methods.push(descr.set);
-        if (typeof descr.value === 'function') methods.push(descr.value);
-    }
-    for (let i = 0; i < methods.length; i++) {
-        const method = methods[i];
-        source = source.replace(method.toString(), '');
+    for (let i = 0; i < prototype.length; i++) {
+        const p = prototype[i];
+        if (p.type !== 'prop') {
+            source = source.replace(p.value.toString(), '');
+        }
     }
     //https://stackoverflow.com/a/2008444/1024431
     // get all assignings to this in constructor
-    const re = /this\.([_$a-zA-Z\xA0-\uFFFF][^_$a-zA-Z0-9\xA0-\uFFFF]*?)\s*=/g;
+    const re = /this\.([_$a-zA-Z\xA0-\uFFFF][_$a-zA-Z0-9\xA0-\uFFFF]*?)\s*=/g;
     let m;
     let keyMap: { [key: string]: boolean } = {};
     while ((m = re.exec(source))) {
         const key = m[1];
-        if (methodsNames.indexOf(key) === -1) {
-            keyMap[m[1]] = true;
-        }
+        keyMap[m[1]] = true;
     }
     return Object.keys(keyMap);
 }
@@ -50,22 +41,21 @@ function getPrototypeInfo(Class: Function) {
         const key = prototypeKeys[i];
         if (key === 'constructor') continue;
         const descriptor = Object.getOwnPropertyDescriptor(Class.prototype, key)!;
-        if (descriptor.get !== undefined || descriptor.set !== undefined) {
+        if (descriptor.get !== undefined) {
             res.push({
                 type: 'getter',
                 name: key,
-                get: descriptor.get,
-                set: descriptor.set,
+                value: descriptor.get,
             });
-        } else if (typeof descriptor.value === 'function') {
+        } else if (descriptor.set !== undefined) {
             res.push({
-                type: 'method',
+                type: 'setter',
                 name: key,
-                method: descriptor.value,
+                value: descriptor.set,
             });
         } else {
             res.push({
-                type: 'prop',
+                type: typeof descriptor.value === 'function' ? 'method' : ('prop' as 'method'),
                 name: key,
                 value: descriptor.value,
             });

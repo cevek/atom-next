@@ -1,6 +1,19 @@
+import { ClassMeta } from './ClassMeta';
+
 export interface Field {
     name: string;
-    idx: number;
-    Class: (new () => {}) | undefined;
-    elementFactory: (new () => {}) | undefined;
+    subClassMeta: ClassMeta[];
+    hooks: {
+        set: ((value: {}) => {}) | undefined;
+    };
+}
+
+export function createField(prop: string): Field {
+    return {
+        name: prop,
+        hooks: {
+            set: undefined,
+        },
+        subClassMeta: [],
+    };
 }

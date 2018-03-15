@@ -1,5 +1,5 @@
 import { Atom } from '../src/atom';
-import { This } from './utils';
+import { This } from './Entity';
 import { RootStore } from './RootStore';
 
 export class TreeMeta<T = {}> {
@@ -38,6 +38,14 @@ export function attach(parent: TreeMeta, key: string | number, treeMeta: TreeMet
         }
     }
 }
+
+export function attachObject(current: This, key: string | number, value: any) {
+    const valueTreeMeta = getObjTreeMeta(value);
+    if (valueTreeMeta !== undefined) {
+        attach(current._treeMeta, key, valueTreeMeta);
+    }
+}
+
 export function detach(treeMeta: TreeMeta) {
     treeMeta.parent = undefined;
     treeMeta.key = undefined;

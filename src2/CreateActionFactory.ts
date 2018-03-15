@@ -1,7 +1,8 @@
 import { glob } from './Glob';
 import { getRootStore } from './TreeMeta';
-import { This, toJSON } from './utils';
+import { toJSON } from './utils';
 import { diff } from './diff';
+import { This } from './Entity';
 
 export function createActionFactory(type: string, reducer: Function) {
     return function(this: This, payload: {}) {

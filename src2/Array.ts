@@ -1,7 +1,9 @@
-import { attach, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
-import { factory, Reducer, setData, This, toJSON } from './utils';
+import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
+import { setData, toJSON } from './utils';
 import { AtomValue } from '../src/atom';
-import { Field } from './Field';
+import { ClassMeta } from './ClassMeta';
+import { This } from './Entity';
+import { createField, Field } from './Field';
 
 let version = 0;
 function mutate<Ret>(arr: ArrayProxy) {
@@ -9,29 +11,19 @@ function mutate<Ret>(arr: ArrayProxy) {
     clearParentsJson(arr._treeMeta);
 }
 
-function attachJsonItem(arr: ArrayProxy, json: any, i: number) {
-    const { elementFactory } = arr._fields[0];
-    if (elementFactory === undefined) {
-        return json;
+function attachJsonItem(arr: ArrayProxy, field: Field, value: any, i: number) {
+    if (field.hooks.set !== undefined) {
+        value = field.hooks.set(value);
     }
-    const value = factory(elementFactory, undefined);
-    const valueTreeMeta = getObjTreeMeta(value);
-    if (valueTreeMeta !== undefined) {
-        attach(arr._treeMeta, i, valueTreeMeta);
-        setData(value, json);
-        return value;
-    } else {
-        throw new Error('Never possible');
-    }
+    attachObject(arr, i, value);
+    setData(value, value);
+    return value;
 }
 
 function attachItems(arr: ArrayProxy, start: number, end: number) {
     for (let i = start; i < end; i++) {
         const value = arr._values[i];
-        const valueTreeMeta = getObjTreeMeta(value);
-        if (valueTreeMeta !== undefined) {
-            attach(arr._treeMeta, i, valueTreeMeta);
-        }
+        attachObject(arr, i, value);
     }
 }
 
@@ -46,19 +38,20 @@ function updateKeys(arr: ArrayProxy, start: number, end: number) {
 }
 
 export function setArrayData(arr: ArrayProxy, json: any[]) {
+    const field = arr._classMeta.fields[0];
     if (json instanceof Array) {
         const min = Math.min(arr._values.length, json.length);
         for (let i = 0; i < min; i++) {
             const childTreeMeta = getObjTreeMeta(arr._values[i]);
             if (childTreeMeta === undefined || childTreeMeta.json !== json[i]) {
-                arr._values[i] = attachJsonItem(arr, json[i], i);
+                arr._values[i] = attachJsonItem(arr, field, json[i], i);
             }
         }
         for (let i = min; i < arr._values.length; i++) {
             detachObject(arr._values[i]);
         }
         for (let i = min; i < json.length; i++) {
-            arr._values[i] = attachJsonItem(arr, json[i], i);
+            arr._values[i] = attachJsonItem(arr, field, json[i], i);
         }
         arr._values.length = json.length;
         arr._version.set(version++);
@@ -70,7 +63,7 @@ export function toJSONArray(arr: ArrayProxy) {
     const newArr = Array(arr.length);
     for (let i = 0; i < arr._values.length; i++) {
         const item = arr._values[i];
-        newArr[i] = toJSON(item);
+        newArr[i] = toJSON(item as This);
     }
     arr._treeMeta.json = newArr;
     return newArr;
@@ -78,17 +71,17 @@ export function toJSONArray(arr: ArrayProxy) {
 
 export class ArrayProxy<T = {}> implements This {
     _treeMeta = new TreeMeta<T[]>();
-    _fields: Field[] = undefined!;
+    _classMeta: ClassMeta = new ClassMeta();
     _version = new AtomValue(version);
     _values: T[] = [];
-    _reducers!: Reducer[];
 
     get length() {
         return this._values.length;
     }
 
-    constructor(elementFactory?: new () => {}) {
-        this._fields = [{ name: 'element', idx: -1, Class: elementFactory, elementFactory: undefined }];
+    constructor(public itemClassMeta: ClassMeta, values: T[] = []) {
+        this._values = values;
+        this._classMeta.fields = [createField('element')];
     }
 
     push(...items: T[]) {

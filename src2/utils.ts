@@ -1,21 +1,24 @@
-import { getObjTreeMeta, TreeMeta } from './TreeMeta';
+import { getObjTreeMeta } from './TreeMeta';
 import { ArrayProxy, setArrayData, toJSONArray } from './Array';
-import { Field } from './Field';
+import { EntityClass, This } from './Entity';
+import { getClassMetaOrThrow } from './ClassMeta';
 
-export function toJSON(obj: any) {
+export function toJSON(obj: This) {
     if (obj === null || typeof obj !== 'object') return obj;
     if (obj instanceof ArrayProxy) {
         return toJSONArray(obj);
     }
-    const { _fields, _treeMeta } = obj as This;
-    if (_treeMeta.json !== undefined) return _treeMeta.json;
+    const classMeta = getClassMetaOrThrow(obj.constructor as EntityClass);
+    const treeMeta = getObjTreeMeta(obj);
+    if (treeMeta === undefined) return {};
+    if (treeMeta.json !== undefined) return treeMeta.json;
     const json: any = {};
-    for (let i = 0; i < _fields.length; i++) {
-        const field = _fields[i];
-        const val = obj[field.name];
+    for (let i = 0; i < classMeta.fields.length; i++) {
+        const field = classMeta.fields[i];
+        const val = (obj as any)[field.name];
         json[field.name] = toJSON(val);
     }
-    _treeMeta.json = json;
+    treeMeta.json = json;
     return json;
 }
 
@@ -24,15 +27,12 @@ export function setData(obj: {}, json: any) {
         return setArrayData(obj, json);
     }
     if (obj instanceof Object) {
-        const { _fields, _treeMeta } = obj as This;
-        for (let i = 0; i < _fields.length; i++) {
-            const field = _fields[i];
+        const { _classMeta: { fields }, _treeMeta } = obj as This;
+        for (let i = 0; i < fields.length; i++) {
+            const field = fields[i];
             const val = json[field.name];
             let currentVal = (obj as any)[field.name];
-            if (currentVal !== null && typeof currentVal === 'object') {
-                if (!(currentVal instanceof Object) && field.Class !== undefined) {
-                    currentVal = factory(field.Class, field.elementFactory);
-                }
+            if (currentVal instanceof Object) {
                 setData(currentVal, val);
             } else {
                 (obj as any)[field.name] = val;
@@ -41,22 +41,6 @@ export function setData(obj: {}, json: any) {
         _treeMeta.json = json;
     }
     return obj;
-}
-
-export interface Reducer {
-    name: string;
-    reducer: Function;
-}
-
-export interface This<T = {}> {
-    _treeMeta: TreeMeta<T>;
-    _fields: Field[];
-    _reducers: Reducer[];
-}
-
-export function factory(Class: new (elementFactory?: new () => {}) => {}, elementFactory: undefined | (new () => {})): This {
-    const instance = new Class(elementFactory);
-    return instance as This;
 }
 
 export function convertPayloadToPlainObject(payload: {}) {

@@ -1,8 +1,8 @@
 import './diff';
 import { RootStore } from './RootStore';
-import { root } from './root';
+import { entity } from './Decorators';
 
 new RootStore([]);
 
-@root
+@entity
 class Todo {}

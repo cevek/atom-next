@@ -1,6 +1,8 @@
-import { Field } from './Field';
-import { convertPayloadToPlainObject, factory, Reducer, setData, This, toJSON } from './utils';
-import { TreeMeta } from './TreeMeta';
+import { convertPayloadToPlainObject, setData, toJSON } from './utils';
+import { attachObject, TreeMeta } from './TreeMeta';
+import { ClassMeta, getClassMetaOrThrow } from './ClassMeta';
+import { EntityClass, EntityClassPublic, This } from './Entity';
+import { createField } from './Field';
 
 export type Store<T> = {
     getState(): T;
@@ -19,24 +21,18 @@ export interface Action {
 
 export class RootStore implements This {
     _treeMeta = new TreeMeta();
-    _reducers!: Reducer[];
-    _fields: Field[] = [{ name: 'lastId', elementFactory: undefined, Class: undefined, idx: 0 }];
+    _classMeta!: ClassMeta;
     lastId = 1;
-
-    _reducersMap = new Map<string, (payload: {}) => void>();
+    _reducersMap = new Map<string, Function>();
     _reduxStore!: CustomStore;
-    _instanceMap = new Map<string, This>();
     // _factoryMap = new Map<string, number>();
-    _path = 'root';
 
-    constructor(private stores: (new () => {})[]) {
+    constructor(private stores: (EntityClassPublic)[]) {
         this._treeMeta.parent = this as any;
-        stores.forEach((Store, i) => {
-            // this._factoryMap.set(Store.name, i);
-            this._instanceMap.set(Store.name, factory(Store, undefined));
-            this._registerReducersFromClass(Store);
-            this._fields.push({ name: Store.name, idx: i, Class: Store, elementFactory: undefined });
-        });
+        this._classMeta.fields = [createField('lastId')];
+        if (stores !== undefined) {
+            stores.forEach(Store => this.getInstance(Store));
+        }
     }
 
     setReduxStore(store: Store<{}>) {
@@ -44,13 +40,33 @@ export class RootStore implements This {
         this._reduxStore.atomStore = this;
         store.subscribe(() => {
             const state = store.getState();
-            if (state !== toJSON(this)) {
-                setData(this, state);
+            if (state !== undefined) {
+                const stateFromThisStore = toJSON(this);
+                if (state !== stateFromThisStore) {
+                    setData(this, state);
+                }
             }
         });
     }
 
-    mainReducer = (state: {}, action: Action): {} => {
+    getInstance<T>(Class: new () => T): T {
+        const Cls = (Class as {}) as EntityClass;
+        const classMeta = getClassMetaOrThrow(Cls);
+        registerClass(this, classMeta);
+        const key = Cls.name;
+        let instance = ((this as {}) as { [key: string]: This })[key];
+        if (instance === undefined) {
+            const field = createField(key);
+            field.subClassMeta.push(classMeta);
+            const instance = new Cls();
+            ((this as {}) as { [key: string]: This })[key] = instance;
+            attachObject(this, key, instance);
+            this._classMeta.fields.push(field);
+        }
+        return (instance as {}) as T;
+    }
+
+    reducer = (state: {}, action: Action): {} => {
         // return patch(state, action.payload);
         return state;
     };
@@ -61,11 +77,24 @@ export class RootStore implements This {
         this._reduxStore.dispatch(action);
     }
 
-    _registerReducersFromClass(Class: new () => {}) {
-        const reducers = Class.prototype._reducersMap;
-        for (let i = 0; i < reducers.length; i++) {
-            const { name, reducer } = reducers[i];
-            this._reducersMap.set(name, reducer);
+    toJSON() {
+        return toJSON(this);
+    }
+}
+
+RootStore.prototype._classMeta = new ClassMeta();
+
+function registerClass(rootStore: RootStore, classMeta: ClassMeta) {
+    const { reducers, fields } = classMeta;
+    for (let i = 0; i < reducers.length; i++) {
+        const { name, reducer } = reducers[i];
+        rootStore._reducersMap.set(name, reducer);
+    }
+    for (let i = 0; i < fields.length; i++) {
+        const field = fields[i];
+        for (let j = 0; j < field.subClassMeta.length; j++) {
+            const subClassMeta = field.subClassMeta[j];
+            registerClass(rootStore, subClassMeta);
         }
     }
 }
