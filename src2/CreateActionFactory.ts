@@ -3,6 +3,7 @@ import { getRootStore } from './TreeMeta';
 import { toJSON } from './utils';
 import { diff } from './diff';
 import { This } from './Entity';
+import { run } from '../src/atom';
 
 export function createActionFactory(type: string, reducer: Function) {
     return function(this: This, payload: {}) {
@@ -21,6 +22,7 @@ export function createActionFactory(type: string, reducer: Function) {
                 }
             } finally {
                 glob.inTransaction = false;
+                run();
             }
         }
     };
