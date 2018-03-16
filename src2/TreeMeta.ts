@@ -4,7 +4,6 @@ import { RootStore } from './RootStore';
 
 export class TreeMeta<T = {}> {
     id: string | number | undefined = undefined;
-    key: string | number | undefined = undefined;
     parent: TreeMeta | undefined = undefined;
     json: T | undefined = undefined;
     atoms: { [key: string]: Atom } = {};
@@ -28,9 +27,9 @@ export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     return;
 }
 
-export function attach(parent: TreeMeta, key: string | number, treeMeta: TreeMeta) {
+export function attach(parent: TreeMeta,  treeMeta: TreeMeta) {
     treeMeta.parent = parent;
-    treeMeta.key = key;
+    // treeMeta.key = key;
     if (treeMeta.id === undefined) {
         const rootStore = getRootStore(parent);
         if (rootStore !== undefined) {
@@ -39,16 +38,16 @@ export function attach(parent: TreeMeta, key: string | number, treeMeta: TreeMet
     }
 }
 
-export function attachObject(current: This, key: string | number, value: any) {
+export function attachObject(current: This, value: any) {
     const valueTreeMeta = getObjTreeMeta(value);
     if (valueTreeMeta !== undefined) {
-        attach(current._treeMeta, key, valueTreeMeta);
+        attach(current._treeMeta, valueTreeMeta);
     }
 }
 
 export function detach(treeMeta: TreeMeta) {
     treeMeta.parent = undefined;
-    treeMeta.key = undefined;
+    // treeMeta.key = undefined;
 }
 
 export function getObjTreeMeta<T>(obj: any) {

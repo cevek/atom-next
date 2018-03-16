@@ -60,7 +60,7 @@ export class RootStore implements This {
             field.subClassMeta.push(classMeta);
             const instance = new Cls();
             ((this as {}) as { [key: string]: This })[key] = instance;
-            attachObject(this, key, instance);
+            attachObject(this, instance);
             this._classMeta.fields.push(field);
         }
         return (instance as {}) as T;
