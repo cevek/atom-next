@@ -62,205 +62,8 @@ export function run() {
     }
     updateList.pos = 0;
 }
-/*
-export class Atom<T = {}> {
-    slaves?: Atom[] = void 0;
-    masters: (Atom | {})[] = undefined!;
-    calcFun?: () => T = void 0;
-    value: T = undefined!;
-    state: AtomState = AtomState.ACTUAL;
-    name?: string;
-    createdInTransaction = trxManager.current.transactionId;
-
-    constructor() {}
-
-    static value<T>(value: T, name?: string) {
-        const atom = new Atom<T>();
-        atom.value = value;
-        atom.name = name;
-        return atom;
-    }
-
-    static calc<T>(fn: () => T, name?: string) {
-        const atom = new Atom<T>();
-        atom.name = name;
-        atom.calcFun = fn;
-        atom.state = AtomState.MAYBE_DIRTY;
-        return atom;
-    }
-
-    static autorun(fn: () => void, name?: string) {
-        const atom = Atom.calc(fn, name);
-        atom.get();
-        return atom;
-    }
-
-    detach() {
-        for (let i = 0; i < this.masters.length; i += 2) {
-            const parent = this.masters[i] as Atom;
-            for (let j = 0; j < parent.slaves!.length; j++) {
-                if (this === parent.slaves![j]) {
-                    parent.slaves!.splice(j, 2);
-                    break;
-                }
-            }
-        }
-        while (this.masters.length > 0) this.masters.pop();
-    }
-
-    set(value: T) {
-        // console.log('set', value, this);
-        this.value = value;
-        updateList.list[updateList.pos++] = this;
-        this.setChildrenMaybeState();
-    }
-
-    actualize() {
-        console.log('actualize', this.name, this.state, this.value);
-        if (this.state === AtomState.MAYBE_DIRTY) {
-            this.calc(false);
-        }
-        if (this.slaves !== void 0) {
-            loop: for (let i = 0; i < this.slaves.length; i++) {
-                const child = this.slaves[i];
-                for (let i = 0; i < child.masters.length; i += 2) {
-                    const master = child.masters[i] as Atom;
-                    // console.log('master', master);
-                    if (master === child) continue;
-                    if (master.state === AtomState.MAYBE_DIRTY) {
-                        continue loop;
-                    }
-                }
-                if (child.state !== AtomState.ACTUAL) {
-                    child.actualize();
-                }
-            }
-        }
-    }
-
-    setChildrenMaybeState() {
-        if (this.slaves !== void 0) {
-            for (let i = 0; i < this.slaves.length; i++) {
-                const child = this.slaves[i];
-                if (child.state === AtomState.ACTUAL) {
-                    child.state = AtomState.MAYBE_DIRTY;
-                    child.setChildrenMaybeState();
-                }
-            }
-        }
-    }
-
-    removeChild(child: Atom) {
-        for (let i = 0; i < this.slaves!.length; i++) {
-            if (child === this.slaves![i]) {
-                this.slaves!.splice(i, 1);
-                return;
-            }
-        }
-    }
-
-    processTransaction() {
-        let shift = 0;
-        for (let i = 0; i < trxManager.current.changesLength; i += 2) {
-            if (trxManager.current.changes[i] !== trxManager.current.transactionId) {
-                const parent = this.masters[i - shift] as Atom;
-                parent.removeChild(this);
-                this.masters.splice(i - shift, 2);
-                shift += 2;
-            }
-        }
-    }
-
-    calc(setChildrenMaybeState: boolean) {
-        trxManager.start(this);
-        console.log('precalc', this.name, this.value);
-        try {
-            const newValue = this.calcFun!();
-            const hasChanged = newValue !== this.value;
-            if (hasChanged && setChildrenMaybeState) {
-                this.setChildrenMaybeState();
-            }
-            this.processTransaction();
-            this.state = AtomState.ACTUAL;
-            this.value = newValue;
-            return hasChanged;
-        } finally {
-            trxManager.end();
-            console.log('postcalc', this.name, this.value);
-        }
-    }
-
-    calcIfNeeded() {
-        console.log('calcIfNeeded', this.name, this.state, this.value);
-        if (this.state === AtomState.MAYBE_DIRTY) {
-            if (this.masters === void 0) {
-                this.masters = [];
-                return this.calc(true);
-            }
-            for (let i = 0; i < this.masters.length; i += 2) {
-                const parent = this.masters[i] as Atom;
-                const value = this.masters[i + 1];
-                if (parent.value !== value || parent.calcIfNeeded()) {
-                    if (this.calc(true)) {
-                        return true;
-                    }
-                }
-            }
-            this.state = AtomState.ACTUAL;
-        }
-        return false;
-    }
-
-    addChild(atom: Atom) {
-        if (this.slaves === void 0) {
-            this.slaves = [];
-        }
-        for (let i = 0; i < this.slaves.length; i++) {
-            const child = this.slaves[i];
-            if (atom === child) {
-                return i;
-            }
-        }
-        this.slaves.push(atom);
-        return -1;
-    }
-
-    addParent(atom: Atom) {
-        for (let i = 0; i < this.masters.length; i += 2) {
-            const parent = this.masters[i];
-            if (parent === atom) {
-                return i;
-            }
-        }
-        this.masters.push(atom, atom.value);
-        return -1;
-    }
-
-    processMaster() {
-        const { current } = trxManager;
-        if (current.atom !== void 0) {
-            // if (!trxManager.possibleToUseAtomAsSlave(this)) {
-            //     return;
-            // }
-            const foundPos = current.atom.addParent(this);
-            if (foundPos === -1) {
-                this.addChild(current.atom);
-            } else {
-                current.changes[foundPos] = current.transactionId;
-            }
-        }
-    }
-
-    get() {
-        this.calcIfNeeded();
-        this.processMaster();
-        return this.value;
-    }
-}
-*/
-
 function actualize(atom: Atom) {
-    console.log('actualize', atom.name, atom.value);
+    // console.log('actualize', atom.name, atom.value);
     if (atom.slaves !== void 0) {
         loop: for (let i = 0; i < atom.slaves.length; i++) {
             const child = atom.slaves[i];
@@ -345,9 +148,9 @@ function processMaster(atom: Atom) {
 
 function calc(atom: AtomCalc, setChildrenMaybeState1: boolean) {
     trxManager.start(atom);
-    console.log('precalc', atom.name, atom.value);
+    // console.log('precalc', atom.name, atom.value);
     try {
-        const newValue = atom.calcFun();
+        const newValue = atom.calcFun.call(atom.owner);
         const hasChanged = newValue !== atom.value;
         if (hasChanged && setChildrenMaybeState1) {
             setChildrenMaybeState(atom);
@@ -358,12 +161,12 @@ function calc(atom: AtomCalc, setChildrenMaybeState1: boolean) {
         return hasChanged;
     } finally {
         trxManager.end();
-        console.log('postcalc', atom.name, atom.value);
+        // console.log('postcalc', atom.name, atom.value);
     }
 }
 
 function calcIfNeeded(atom: AtomCalc) {
-    console.log('calcIfNeeded', atom.name, atom.state, atom.value);
+    // console.log('calcIfNeeded', atom.name, atom.state, atom.value);
     if (atom.masters === void 0) {
         atom.masters = [];
         return calc(atom, true);
@@ -408,8 +211,8 @@ function detachCalc(atom: AtomCalc) {
     while (atom.masters.length > 0) atom.masters.pop();
 }
 
-export function autorun<T>(calcFun: () => T, name?: string) {
-    const atom = new AtomCalc<T>(calcFun, name);
+export function autorun<T>(calcFun: () => T) {
+    const atom = new AtomCalc<T>(undefined, calcFun);
     atom.get();
     return atom;
 }
@@ -418,6 +221,12 @@ function getCalc<T>(atom: AtomCalc<T>) {
     if (atom.state === AtomState.MAYBE_DIRTY) {
         calcIfNeeded(atom);
     }
+    processMaster(atom);
+    return atom.value;
+}
+function getForceCalc<T>(atom: AtomCalc<T>) {
+    atom.masters = undefined!;
+    calcIfNeeded(atom);
     processMaster(atom);
     return atom.value;
 }
@@ -431,13 +240,16 @@ function setValue(atom: AtomValue, value: {}) {
 export type Atom = AtomCalc | AtomValue;
 
 export class AtomCalc<T = {}> {
+    name?: string;
     slaves?: AtomCalc[] = void 0;
     masters: (Atom | {})[] = undefined!;
+    owner: any;
     calcFun: () => T;
     value: T = undefined!;
     state = AtomState.MAYBE_DIRTY;
 
-    constructor(calcFun: () => T, public name?: string) {
+    constructor(owner: any, calcFun: () => T) {
+        this.owner = owner;
         this.calcFun = calcFun;
     }
 
@@ -448,20 +260,29 @@ export class AtomCalc<T = {}> {
     get(): T {
         return getCalc<T>(this);
     }
+
+    getForce(): T {
+        return getForceCalc<T>(this);
+    }
 }
 
 export class AtomValue<T = {}> {
+    name?: string;
     slaves?: AtomCalc[] = void 0;
     value: T;
     // createdInTransaction = trxManager.current.transactionId;
     state!: AtomState.ACTUAL;
 
-    constructor(value: T, public name?: string) {
+    constructor(value: T) {
         this.value = value;
     }
 
     set(value: T) {
-        setValue(this, value);
+        if (value !== this.value) {
+            setValue(this, value);
+            return true;
+        }
+        return false;
     }
 
     get() {

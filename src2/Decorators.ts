@@ -1,5 +1,5 @@
 import { reflectClass, ReflectClassResult } from './ReflectClass';
-import { AtomCalc, AtomValue } from '../src/atom';
+import { AtomCalc, AtomValue } from './Atom';
 import { attachObject, TreeMeta } from './TreeMeta';
 import { EntityClass, EntityClassPublic, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';

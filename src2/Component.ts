@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 import { CustomStore, RootStore } from './RootStore';
-import { AtomCalc, autorun } from '../src/atom';
+import { AtomCalc, autorun } from './Atom';
 
 type Omit<A, B> = { [P in Exclude<keyof A, keyof B>]: A[P] };
 let callFromRender = false;

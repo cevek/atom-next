@@ -1,4 +1,4 @@
-import { Atom } from '../src/atom';
+import { Atom } from './Atom';
 import { This } from './Entity';
 import { RootStore } from './RootStore';
 

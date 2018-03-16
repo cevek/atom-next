@@ -1,6 +1,6 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
 import { checkWeAreInAction, setData, toJSON } from './utils';
-import { AtomValue } from '../src/atom';
+import { AtomValue } from './Atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
 import { createField, Field } from './Field';
