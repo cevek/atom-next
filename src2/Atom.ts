@@ -198,17 +198,16 @@ function processTransaction(atom: AtomCalc) {
 
 function detachCalc(atom: AtomCalc) {
     for (let i = 0; i < atom.masters.length; i += 2) {
-        const parent = atom.masters[i] as Atom;
-        if (parent.slaves !== void 0) {
-            for (let j = 0; j < parent.slaves.length; j++) {
-                if (atom === parent.slaves[j]) {
-                    parent.slaves.splice(j, 2);
-                    break;
-                }
+        const master = atom.masters[i] as Atom;
+        if (master.slaves!.length === 1) {
+            if (master.state !== AtomState.ACTUAL) {
+                detachCalc(master);
             }
+        } else {
+            removeChild(master, atom);
         }
     }
-    while (atom.masters.length > 0) atom.masters.pop();
+    atom.masters = undefined!;
 }
 
 export function autorun<T>(calcFun: () => T) {
