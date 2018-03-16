@@ -2,6 +2,7 @@ import { getObjTreeMeta } from './TreeMeta';
 import { ArrayProxy, setArrayData, toJSONArray } from './Array';
 import { EntityClass, This } from './Entity';
 import { getClassMetaOrThrow } from './ClassMeta';
+import { glob } from './Glob';
 
 export function toJSON(obj: This) {
     if (obj === null || typeof obj !== 'object') return obj;
@@ -23,24 +24,29 @@ export function toJSON(obj: This) {
 }
 
 export function setData(obj: {}, json: any) {
-    if (obj instanceof ArrayProxy) {
-        return setArrayData(obj, json);
-    }
-    if (obj instanceof Object) {
-        const { _classMeta: { fields }, _treeMeta } = obj as This;
-        for (let i = 0; i < fields.length; i++) {
-            const field = fields[i];
-            const val = json[field.name];
-            let currentVal = (obj as any)[field.name];
-            if (currentVal instanceof Object) {
-                setData(currentVal, val);
-            } else {
-                (obj as any)[field.name] = val;
-            }
+    try {
+        glob.inTransaction = true;
+        if (obj instanceof ArrayProxy) {
+            return setArrayData(obj, json);
         }
-        _treeMeta.json = json;
+        if (obj instanceof Object) {
+            const { _classMeta: { fields }, _treeMeta } = obj as This;
+            for (let i = 0; i < fields.length; i++) {
+                const field = fields[i];
+                const val = json[field.name];
+                let currentVal = (obj as any)[field.name];
+                if (currentVal instanceof Object) {
+                    setData(currentVal, val);
+                } else {
+                    (obj as any)[field.name] = val;
+                }
+            }
+            _treeMeta.json = json;
+        }
+        return obj;
+    } finally {
+        glob.inTransaction = false;
     }
-    return obj;
 }
 
 export function convertPayloadToPlainObject(payload: {}) {
@@ -75,4 +81,10 @@ export function convertPayloadPlainObjectToNormal(payload: any, instanceMap: Map
         return newObj;
     }
     return payload;
+}
+
+export function checkWeAreInAction() {
+    if (!glob.inTransaction) {
+        throw new Error('You can change values only in the action methods');
+    }
 }

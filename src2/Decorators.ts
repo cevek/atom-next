@@ -5,7 +5,8 @@ import { EntityClass, EntityClassPublic, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';
 import { ArrayProxy } from './Array';
 import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField } from './ClassMeta';
-import { toJSON } from './utils';
+import { checkWeAreInAction, toJSON } from './utils';
+import { glob } from './Glob';
 
 function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]) {
     for (let i = 0; i < props.length; i++) {
@@ -24,11 +25,13 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                 let atom = treeMeta.atoms[prop] as AtomValue;
                 if (typeof atom === 'undefined') {
                     treeMeta.atoms[prop] = atom = new AtomValue(value);
+                } else {
+                    checkWeAreInAction();
                 }
                 if (field.hooks.set !== undefined) {
                     value = field.hooks.set(value);
                 }
-                attachObject(this, prop, value);
+                attachObject(this, value);
                 atom.set(value);
             },
         });
@@ -45,7 +48,7 @@ function setMethods(Target: Function, classMeta: ClassMeta, prototype: ReflectCl
                 get: function(this: This) {
                     let treeMeta = this._treeMeta;
                     let atom = treeMeta.atoms[prop];
-                    if (typeof atom === 'undefined') atom = new AtomCalc(method);
+                    if (typeof atom === 'undefined') atom = new AtomCalc(this, method);
                     return atom.get();
                 },
             });

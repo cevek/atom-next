@@ -1,13 +1,14 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
-import { setData, toJSON } from './utils';
+import { checkWeAreInAction, setData, toJSON } from './utils';
 import { AtomValue } from '../src/atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
 import { createField, Field } from './Field';
+import { glob } from './Glob';
 
 let version = 0;
 function mutate<Ret>(arr: ArrayProxy) {
-    arr._version.set(version++);
+    arr._version.set(++version);
     clearParentsJson(arr._treeMeta);
 }
 
@@ -15,46 +16,34 @@ function attachJsonItem(arr: ArrayProxy, field: Field, value: any, i: number) {
     if (field.hooks.set !== undefined) {
         value = field.hooks.set(value);
     }
-    attachObject(arr, i, value);
+    attachObject(arr, value);
     setData(value, value);
     return value;
 }
 
-function attachItems(arr: ArrayProxy, start: number, end: number) {
-    for (let i = start; i < end; i++) {
-        const value = arr._values[i];
-        attachObject(arr, i, value);
-    }
-}
-
-function updateKeys(arr: ArrayProxy, start: number, end: number) {
-    for (let i = start; i < end; i++) {
-        const value = arr._values[i];
-        const valueTreeMeta = getObjTreeMeta(value);
-        if (valueTreeMeta !== undefined) {
-            arr._treeMeta.key = i;
-        }
-    }
-}
-
 export function setArrayData(arr: ArrayProxy, json: any[]) {
-    const field = arr._classMeta.fields[0];
-    if (json instanceof Array) {
-        const min = Math.min(arr._values.length, json.length);
-        for (let i = 0; i < min; i++) {
-            const childTreeMeta = getObjTreeMeta(arr._values[i]);
-            if (childTreeMeta === undefined || childTreeMeta.json !== json[i]) {
+    try {
+        glob.inTransaction = true;
+        const field = arr._classMeta.fields[0];
+        if (json instanceof Array) {
+            const min = Math.min(arr._values.length, json.length);
+            for (let i = 0; i < min; i++) {
+                const childTreeMeta = getObjTreeMeta(arr._values[i]);
+                if (childTreeMeta === undefined || childTreeMeta.json !== json[i]) {
+                    arr._values[i] = attachJsonItem(arr, field, json[i], i);
+                }
+            }
+            for (let i = min; i < arr._values.length; i++) {
+                detachObject(arr._values[i]);
+            }
+            for (let i = min; i < json.length; i++) {
                 arr._values[i] = attachJsonItem(arr, field, json[i], i);
             }
+            arr._values.length = json.length;
+            arr._version.set(version++);
         }
-        for (let i = min; i < arr._values.length; i++) {
-            detachObject(arr._values[i]);
-        }
-        for (let i = min; i < json.length; i++) {
-            arr._values[i] = attachJsonItem(arr, field, json[i], i);
-        }
-        arr._values.length = json.length;
-        arr._version.set(version++);
+    } finally {
+        glob.inTransaction = false;
     }
 }
 
@@ -85,54 +74,80 @@ export class ArrayProxy<T = {}> implements This {
     }
 
     push(...items: T[]) {
+        checkWeAreInAction();
         const ret = this._values.push(...items);
-        attachItems(this, this._values.length - items.length, this._values.length);
+        for (let i = 0; i < items.length; i++) {
+            attachObject(this, items[i]);
+        }
         mutate(this);
         return ret;
     }
 
     unshift(...items: T[]) {
+        checkWeAreInAction();
         const ret = this._values.unshift(...items);
-        attachItems(this, 0, items.length);
+        for (let i = 0; i < items.length; i++) {
+            attachObject(this, items[i]);
+        }
         mutate(this);
         return ret;
     }
 
     pop() {
+        checkWeAreInAction();
         const ret = detachObject(this._values.pop());
         mutate(this);
         return ret;
     }
 
     shift() {
+        checkWeAreInAction();
         const ret = detachObject(this._values.shift());
         mutate(this);
         return ret;
     }
 
     reverse() {
+        checkWeAreInAction();
         this._values.reverse();
         mutate(this);
-        updateKeys(this, 0, this._values.length);
         return this;
     }
 
     splice(start: number, deleteCount = 0, ...items: T[]) {
-        for (let i = start; i < start + deleteCount; i++) {
-            detachObject(this._values[i]);
-        }
+        checkWeAreInAction();
         const ret = this._values.splice(start, deleteCount, ...items);
-        attachItems(this, start, start + items.length - deleteCount);
-        updateKeys(this, start + items.length - deleteCount, items.length);
+        for (let i = 0; i < ret.length; i++) {
+            detachObject(ret[i]);
+        }
+        for (let i = 0; i < items.length; i++) {
+            attachObject(this, items[i]);
+        }
         mutate(this);
         return ret;
     }
 
     sort(compareFn?: (a: T | undefined, b: T | undefined) => number) {
+        checkWeAreInAction();
         this._values.sort(compareFn);
-        updateKeys(this, 0, this._values.length);
         mutate(this);
         return this;
+    }
+
+    get(idx: number) {
+        this._version.get();
+        return this._values[idx];
+    }
+
+    set(idx: number, value: T) {
+        mutate(this);
+        detachObject(this._values[idx]);
+        attachObject(this, value);
+        this._values[idx] = value;
+    }
+
+    [Symbol.iterator]() {
+        return this._values[Symbol.iterator]();
     }
 }
 
