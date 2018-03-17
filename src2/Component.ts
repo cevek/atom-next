@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as PropTypes from 'prop-types';
 import { CustomStore, RootStore } from './RootStore';
-import { AtomCalc, autorun } from './Atom';
+import { AtomCalc } from './Atom';
 
 type Omit<A, B> = { [P in Exclude<keyof A, keyof B>]: A[P] };
 let callFromRender = false;
@@ -11,14 +11,9 @@ export function connect<Props, StateProps extends Partial<Props>, HOCProps>(
 ): React.ComponentClass<Omit<Props, StateProps> & HOCProps> {
     return class Connect extends React.PureComponent<Omit<Props, StateProps> & HOCProps> {
         static displayName = render.name ? `Connect(${render.name})` : 'Connect';
-        static contextTypes = {
-            store: PropTypes.object,
-        };
-        disposer: () => void = undefined!;
+        static contextTypes = { store: PropTypes.object };
         context!: { store: CustomStore };
-        update = () => {
-            this.forceUpdate();
-        };
+        update = () => this.forceUpdate();
         timeout = -1;
         atom = new AtomCalc(this, this.atomRender);
         atomRender() {
@@ -37,7 +32,8 @@ export function connect<Props, StateProps extends Partial<Props>, HOCProps>(
         render() {
             try {
                 callFromRender = true;
-                return this.atom.getForce();
+                this.atom.reset();
+                return this.atom.get();
             } finally {
                 callFromRender = false;
             }
