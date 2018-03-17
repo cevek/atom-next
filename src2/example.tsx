@@ -3,7 +3,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { Provider } from 'react-redux';
 import { applyMiddleware, compose, createStore } from 'redux';
-import { array, entity, sub } from './Decorators';
+import { array, entity, hash, sub } from './Decorators';
 import { connect } from './Component';
 
 const w: any = window;
@@ -76,9 +76,17 @@ class Todo {
 class User {}
 
 @entity
+class Fav {
+    name = 'fav';
+}
+
+@entity
 class TodoStore {
     @array(Todo) todos: Todo[] = [];
     @sub(User) user: User | undefined = undefined;
+
+    @hash(Fav) favs = new Map<number, Fav>();
+
     addTodo(todo: Todo) {
         this.todos.push(todo);
     }
