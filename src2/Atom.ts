@@ -236,7 +236,7 @@ function setValue(atom: AtomValue, value: {}) {
     setChildrenMaybeState(atom);
 }
 
-export type Atom = AtomCalc | AtomValue;
+export type Atom<T = {}> = AtomCalc<T> | AtomValue<T>;
 
 export class AtomCalc<T = {}> {
     name?: string;
@@ -260,8 +260,13 @@ export class AtomCalc<T = {}> {
         return getCalc<T>(this);
     }
 
-    getForce(): T {
-        return getForceCalc<T>(this);
+    reset() {
+        this.masters = undefined!;
+        this.state = AtomState.MAYBE_DIRTY;
+    }
+
+    toJSON() {
+        return this.value;
     }
 }
 
@@ -286,6 +291,10 @@ export class AtomValue<T = {}> {
 
     get() {
         processMaster(this);
+        return this.value;
+    }
+
+    toJSON() {
         return this.value;
     }
 }
