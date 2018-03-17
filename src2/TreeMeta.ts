@@ -1,12 +1,12 @@
-import { Atom } from './Atom';
+import { AtomValue } from './Atom';
 import { This } from './Entity';
 import { RootStore } from './RootStore';
 
 export class TreeMeta<T = {}> {
     id: string | number | undefined = undefined;
     parent: TreeMeta | undefined = undefined;
-    json: T | undefined = undefined;
-    atoms: { [key: string]: Atom } = {};
+    json: any = undefined;
+    atoms: { [key: string]: AtomValue } = {};
 }
 
 export function clearParentsJson(treeMeta: TreeMeta) {
@@ -27,7 +27,7 @@ export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     return;
 }
 
-export function attach(parent: TreeMeta,  treeMeta: TreeMeta) {
+export function attach(parent: TreeMeta, treeMeta: TreeMeta) {
     treeMeta.parent = parent;
     // treeMeta.key = key;
     if (treeMeta.id === undefined) {

@@ -4,6 +4,7 @@ import { ClassMeta } from './ClassMeta';
 export interface This<T = {}> {
     _treeMeta: TreeMeta<T>;
     _classMeta: ClassMeta;
+    toJSON(): any;
 }
 
 export interface EntityClass<T = {}> {

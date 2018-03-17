@@ -1,5 +1,5 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
-import { checkWeAreInAction, setData, toJSON } from './utils';
+import { checkWeAreInAction, neverPossible, toJSON } from './utils';
 import { AtomValue } from './Atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
@@ -13,11 +13,10 @@ function mutate<Ret>(arr: ArrayProxy) {
 }
 
 function attachJsonItem(arr: ArrayProxy, field: Field, value: any, i: number) {
-    if (field.hooks.set !== undefined) {
-        value = field.hooks.set(value);
+    if (field.classMeta !== undefined) {
+        value = field.classMeta.factory(value, arr._values[i]);
     }
     attachObject(arr, value);
-    setData(value, value);
     return value;
 }
 
@@ -58,9 +57,13 @@ export function toJSONArray(arr: ArrayProxy) {
     return newArr;
 }
 
+export function arrayFactory(elementClassMeta: ClassMeta, json: any, prevValue: any) {
+    return new ArrayProxy(elementClassMeta, json);
+}
+
 export class ArrayProxy<T = {}> implements This {
     _treeMeta = new TreeMeta<T[]>();
-    _classMeta: ClassMeta = new ClassMeta();
+    _classMeta = new ClassMeta(neverPossible);
     _version = new AtomValue(version);
     _values: T[] = [];
 
@@ -68,9 +71,9 @@ export class ArrayProxy<T = {}> implements This {
         return this._values.length;
     }
 
-    constructor(public itemClassMeta: ClassMeta, values: T[] = []) {
+    constructor(public elementClassMeta: ClassMeta, values: T[] = []) {
         this._values = values;
-        this._classMeta.fields = [createField('element')];
+        this._classMeta.fields.push(createField('element', elementClassMeta));
     }
 
     push(...items: T[]) {
@@ -144,6 +147,16 @@ export class ArrayProxy<T = {}> implements This {
         detachObject(this._values[idx]);
         attachObject(this, value);
         this._values[idx] = value;
+    }
+
+    toJSON() {
+        if (this._treeMeta.json !== undefined) return this._treeMeta.json;
+        const arr = Array(this._values.length);
+        for (let i = 0; i < this._values.length; i++) {
+            arr[i] = toJSON(this._values[i]);
+        }
+        this._treeMeta.json = arr;
+        return arr;
     }
 
     [Symbol.iterator]() {

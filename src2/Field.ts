@@ -1,19 +1,15 @@
 import { ClassMeta } from './ClassMeta';
 
 export interface Field {
-    name: string;
+    name: string | number;
+    classMeta: ClassMeta | undefined;
     subClassMeta: ClassMeta[];
-    hooks: {
-        set: ((value: {}) => {}) | undefined;
-    };
 }
 
-export function createField(prop: string): Field {
+export function createField(prop: string | number, classMeta: ClassMeta | undefined): Field {
     return {
         name: prop,
-        hooks: {
-            set: undefined,
-        },
+        classMeta: classMeta,
         subClassMeta: [],
     };
 }

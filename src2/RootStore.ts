@@ -1,4 +1,4 @@
-import { convertPayloadToPlainObject, setData, toJSON } from './utils';
+import { convertPayloadToPlainObject, neverPossible, toJSON } from './utils';
 import { attachObject, TreeMeta } from './TreeMeta';
 import { ClassMeta, getClassMetaOrThrow } from './ClassMeta';
 import { EntityClass, EntityClassPublic, This } from './Entity';
@@ -25,11 +25,12 @@ export class RootStore implements This {
     lastId = 1;
     _reducersMap = new Map<string, Function>();
     _reduxStore!: CustomStore;
+    // roots: { [key: string]: { default: This | undefined; ids: { [key: string]: This } } } = {};
     // _factoryMap = new Map<string, number>();
 
     constructor(private stores: (EntityClassPublic)[]) {
         this._treeMeta.parent = this as any;
-        this._classMeta.fields = [createField('lastId')];
+        this._classMeta.fields = [createField('lastId', undefined)];
         if (stores !== undefined) {
             stores.forEach(Store => this.getInstance(Store));
         }
@@ -43,7 +44,7 @@ export class RootStore implements This {
             if (state !== undefined) {
                 const stateFromThisStore = toJSON(this);
                 if (state !== stateFromThisStore) {
-                    setData(this, state);
+                    // todo:
                 }
             }
         });
@@ -56,7 +57,7 @@ export class RootStore implements This {
         const key = Cls.name;
         let instance = ((this as {}) as { [key: string]: This })[key];
         if (instance === undefined) {
-            const field = createField(key);
+            const field = createField(key, classMeta);
             field.subClassMeta.push(classMeta);
             const instance = new Cls();
             ((this as {}) as { [key: string]: This })[key] = instance;
@@ -78,11 +79,19 @@ export class RootStore implements This {
     }
 
     toJSON() {
-        return toJSON(this);
+        if (this._treeMeta.json !== undefined) return this._treeMeta.json;
+        const json: any = {};
+        const fields = this._classMeta.fields;
+        for (let i = 0; i < fields.length; i++) {
+            const key = fields[i].name;
+            json[key] = toJSON((this as any)[key]);
+        }
+        this._treeMeta.json = json;
+        return json;
     }
 }
 
-RootStore.prototype._classMeta = new ClassMeta();
+RootStore.prototype._classMeta = new ClassMeta(neverPossible);
 
 function registerClass(rootStore: RootStore, classMeta: ClassMeta) {
     const { reducers, fields } = classMeta;
