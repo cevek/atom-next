@@ -120,7 +120,7 @@ function TodoItem(props: { todo: Todo }) {
         <div>
             <label style={{ textDecoration: props.todo.isDone ? 'line-through' : undefined }}>
                 <input
-                    defaultChecked={props.todo.isDone}
+                    checked={props.todo.isDone}
                     onChange={() => props.todo.done(!props.todo.isDone)}
                     type="checkbox"
                 />{' '}
