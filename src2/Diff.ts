@@ -1,3 +1,4 @@
+type Any = any;
 const enum Code {
     SET_ARRAY = 'array',
     PATCH_ARRAY = 'patchArray',
@@ -9,11 +10,11 @@ const enum ArrayCode {
     ARRAY_UPDATE_ITEM = 'patch',
     ARRAY_NEW_ITEM = 'new',
 }
-function isObject(a: any) {
+function isObject(a: Any) {
     return a !== null && typeof a === 'object';
 }
 
-function handleType(a: any): any {
+function handleType(a: Any): Any {
     if (a === undefined) {
         return [Code.UNDEFINED];
     }
@@ -26,8 +27,8 @@ function handleType(a: any): any {
     return a;
 }
 
-function diffA(a: any[], b: any[], idKey: string): any[] {
-    const res: any[] = [Code.PATCH_ARRAY];
+function diffA(a: Any[], b: Any[], idKey: string): Any[] {
+    const res: Any[] = [Code.PATCH_ARRAY];
     let start = 0;
     let end = b.length;
     const lenDiff = b.length - a.length;
@@ -48,7 +49,7 @@ function diffA(a: any[], b: any[], idKey: string): any[] {
                 }
             }
             // check by object ids
-            if (pos === -1 && item.id !== undefined) {
+            if (pos === -1 && item[idKey] !== undefined) {
                 const itemId = item[idKey];
                 for (let j = start; j < end - lenDiff; j++) {
                     const val = aCopy[j];
@@ -75,14 +76,14 @@ function diffA(a: any[], b: any[], idKey: string): any[] {
     return res;
 }
 
-export function diff(a: any, b: any, idKey = 'id') {
+export function diff(a: Any, b: Any, idKey = 'id') {
     if (a === b) {
         return {};
     }
     if (isObject(a) && isObject(b) && a.constructor === b.constructor) {
         // objects
         if (a.constructor === Object) {
-            const ret: any = {};
+            const ret: Any = {};
             const aKeys = Object.keys(a);
             for (let i = 0; i < aKeys.length; i++) {
                 const aKey = aKeys[i];
@@ -107,7 +108,7 @@ export function diff(a: any, b: any, idKey = 'id') {
     return handleType(b);
 }
 
-function patchArray(oldArr: any[], p: any[]) {
+function patchArray(oldArr: Any[], p: Any[]) {
     const newArr = [];
     let left = 0;
     if (p[1] < 0) {
@@ -148,7 +149,7 @@ function never(a: never): never {
 
 const DeletedKey = Symbol('deleted');
 
-export function patch(old: any, p: any): any {
+export function patch(old: Any, p: Any): Any {
     if (p instanceof Array) {
         const type = p[0] as Code;
         switch (type) {
@@ -167,9 +168,9 @@ export function patch(old: any, p: any): any {
         }
     }
     if (old instanceof Object && p instanceof Object) {
-        const newObj: any = {};
+        const newObj: Any = {};
         const keys = Object.keys(p);
-        const appliedKeys: any = {};
+        const appliedKeys: Any = {};
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
             const patchValue = p[key];

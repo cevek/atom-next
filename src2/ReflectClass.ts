@@ -2,7 +2,7 @@ export interface ReflectClassResult {
     props: string[];
     prototype: (
         | { type: 'method' | 'getter' | 'setter'; name: string; value: Function }
-        | { type: 'prop'; name: string; value: any })[];
+        | { type: 'prop'; name: string; value: {} })[];
 }
 
 export function reflectClass(Class: Function): ReflectClassResult {

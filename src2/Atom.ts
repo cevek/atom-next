@@ -236,12 +236,12 @@ export class AtomCalc<T = {}> {
     name?: string;
     slaves?: AtomCalc[] = void 0;
     masters: (Atom | {})[] = undefined!;
-    owner: any;
+    owner: {} | undefined;
     calcFun: () => T;
     value: T = undefined!;
     state = AtomState.MAYBE_DIRTY;
 
-    constructor(owner: any, calcFun: () => T) {
+    constructor(owner: {} | undefined, calcFun: () => T) {
         this.owner = owner;
         this.calcFun = calcFun;
     }

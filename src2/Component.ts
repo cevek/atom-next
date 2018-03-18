@@ -22,11 +22,11 @@ export function connect<Props, StateProps extends Partial<Props>, HOCProps>(
                 this.timeout = setTimeout(this.update);
                 return;
             }
-            const newProps = Object.assign(
+            const newProps = (Object.assign(
                 {},
                 this.props,
-                stateToProps === undefined ? undefined : stateToProps(this.context.store.atomStore, this.props as any)
-            ) as any;
+                stateToProps === undefined ? undefined : stateToProps(this.context.store.atomStore, this.props as never)
+            ) as {}) as Props;
             return render(newProps);
         }
         render() {

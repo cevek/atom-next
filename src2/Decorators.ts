@@ -1,11 +1,11 @@
 import { reflectClass, ReflectClassResult } from './ReflectClass';
 import { Atom, AtomCalc, AtomValue } from './Atom';
 import { attachObject, clearParentsJson, TreeMeta } from './TreeMeta';
-import { EntityClass, EntityClassPublic, This } from './Entity';
+import { EntityClass, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';
 import { arrayFactory, ArrayProxy } from './Array';
 import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField, transformValue } from './ClassMeta';
-import { checkWeAreInAction, toJSON } from './Utils';
+import { checkWeAreInAction, Index, JsonType, toJSON } from './Utils';
 import { factoryMap, HashMap } from './HashMap';
 import { glob } from './Glob';
 import { createField } from './Field';
@@ -19,7 +19,7 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                 let treeMeta = this._treeMeta;
                 return treeMeta.atoms[prop].get();
             },
-            set: function(this: This, value: any) {
+            set: function(this: This, value: {}) {
                 let treeMeta = this._treeMeta;
                 if (typeof treeMeta === 'undefined') {
                     treeMeta = this._treeMeta = new TreeMeta();
@@ -65,18 +65,18 @@ function setMethods(Target: Function, classMeta: ClassMeta, prototype: ReflectCl
         if (treeMeta === undefined) return {};
         const classMeta = this._classMeta;
         if (treeMeta.json !== undefined) return treeMeta.json;
-        const json: any = {};
+        const json: JsonType = {};
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
-            json[field.name] = toJSON((this as any)[field.name]);
+            json[field.name] = toJSON(((this as {}) as Index)[field.name]);
         }
         treeMeta.json = json;
         return json;
     };
 }
 
-export function entity<Class extends EntityClassPublic>(target: Class): Class {
-    const Target = target as EntityClass;
+export function entity<Class extends new () => {}>(target: Class): Class {
+    const Target = (target as {}) as EntityClass;
     const { prototype, props } = reflectClass(Target);
     const classMeta = getOrCreateClassMeta(Target, undefined!);
     classMeta.factory = (json, prev) => factoryEntity(Target, json, prev as This);
@@ -117,7 +117,7 @@ export function hash<T>(Cls: new () => T) {
     };
 }
 
-export function sub<T>(Cls: new (...args: any[]) => T) {
+export function sub<T>(Cls: new () => T) {
     return function<Prop extends string, Trg extends Record<Prop, T | undefined>>(targetProto: Trg, prop: Prop) {
         const Class = (Cls as {}) as EntityClass;
         const Target = targetProto.constructor as EntityClass;
@@ -129,7 +129,7 @@ export function sub<T>(Cls: new (...args: any[]) => T) {
     };
 }
 
-function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefined, prev: This | undefined) {
+function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefined, prev: {} | undefined) {
     if (json === undefined) return undefined;
     const prevInTransaction = glob.inTransaction;
     try {
@@ -138,10 +138,10 @@ function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefi
             prev = new Target();
         }
         // const treeMeta = prev._treeMeta;
-        const classMeta = prev._classMeta;
+        const classMeta = (prev as This)._classMeta;
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
-            (prev as any)[field.name] = json[field.name];
+            (prev as Index)[field.name] = json[field.name];
         }
         // treeMeta.json = json;
         return prev;

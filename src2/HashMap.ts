@@ -2,7 +2,7 @@ import { clearParentsJson, TreeMeta } from './TreeMeta';
 import { AtomCalc, AtomValue } from './Atom';
 import { ClassMeta, transformValue } from './ClassMeta';
 import { This } from './Entity';
-import { neverPossible, toJSON } from './Utils';
+import { JsonType, neverPossible, toJSON } from './Utils';
 import { createField } from './Field';
 
 function mutate<Ret>(arr: HashMap) {
@@ -106,7 +106,7 @@ export class HashMap<T = {}> implements This {
     set(key: string | number, value: T) {
         const treeMeta = this._treeMeta;
         const atom = treeMeta.atoms[key];
-        const prevValue = atom === undefined ? undefined : atom.get();
+        const prevValue = atom === undefined ? undefined : (atom.get() as T);
         value = transformValue(this._classMeta.fields[0], value, prevValue);
         if (atom === undefined) {
             treeMeta.atoms[key] = new AtomValue(value);
@@ -138,7 +138,7 @@ export class HashMap<T = {}> implements This {
     toJSON() {
         if (this._treeMeta.json !== undefined) return this._treeMeta.json;
         const keysValues = this._keyValues.get();
-        const json: any = {};
+        const json: JsonType = {};
         for (let i = 0; i < keysValues.length; i++) {
             const [key, value] = keysValues[i];
             json[key] = toJSON(value);

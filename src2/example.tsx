@@ -38,8 +38,8 @@ class TodoList1 {
 
 function run() {
     const atomStore = new RootStore([TodoStore]);
-    (window as any).atomStore = atomStore;
-    const composeEnhancers = (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
+    w.atomStore = atomStore;
+    const composeEnhancers = w.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
     const store = createStore(
         atomStore.reducer,
         /*state,*/

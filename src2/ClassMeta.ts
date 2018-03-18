@@ -9,7 +9,7 @@ export interface Reducer {
 export class ClassMeta {
     fields: Field[] = [];
     reducers: Reducer[] = [];
-    constructor(public factory: (json: {} | undefined, prevValue: {} | undefined) => any) {}
+    constructor(public factory: (json: {} | undefined, prevValue: {} | undefined) => {} | undefined) {}
 }
 
 export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassMeta: ClassMeta | undefined) {
@@ -21,7 +21,10 @@ export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassM
     return field;
 }
 
-export function getOrCreateClassMeta(Class: EntityClass, factory: (json: any, prevValue: any) => any) {
+export function getOrCreateClassMeta(
+    Class: EntityClass,
+    factory: (json: {} | undefined, prevValue: {} | undefined) => {}
+) {
     let classMeta = Class.prototype._classMeta;
     if (classMeta === undefined) {
         classMeta = Class.prototype._classMeta = new ClassMeta(factory);
@@ -37,10 +40,10 @@ export function getClassMetaOrThrow(Class: EntityClass) {
     return classMeta;
 }
 
-export function transformValue(field: Field, value: {} | undefined, prevValue: {} | undefined) {
+export function transformValue<T>(field: Field, value: T, prevValue: T | undefined): T {
     const valueClassMeta = field.classMeta;
     if (valueClassMeta !== undefined) {
-        return valueClassMeta.factory(value, prevValue);
+        return valueClassMeta.factory(value, prevValue) as T;
     }
     return value;
 }

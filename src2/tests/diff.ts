@@ -1,6 +1,7 @@
 import { diff, patch } from '../Diff';
 
-function deepEqual(x: any, y: any) {
+type Any = any;
+function deepEqual(x: Any, y: Any) {
     if (typeof x == 'object' && x != null && (typeof y == 'object' && y != null)) {
         if (Object.keys(x).length != Object.keys(y).length) return false;
         for (let prop in x) {
@@ -12,7 +13,7 @@ function deepEqual(x: any, y: any) {
     } else return x === y;
 }
 
-function test(a: any, b: any, expected: any) {
+function test(a: {}, b: {}, expected: {}) {
     const patchO = diff(a, b);
     const restored = patch(a, patchO);
     const strTransformed = JSON.stringify(b);
@@ -35,7 +36,7 @@ const arr: { id: number }[] = [];
 for (let i = 0; i < 20; i++) {
     arr.push({ id: i });
 }
-function testArray(a: number[], b: number[], expected: any[]) {
+function testArray(a: number[], b: number[], expected: {}[]) {
     return test(a.map(id => arr[id]), b.map(id => arr[id]), ['patchArray', ...expected]);
 }
 
