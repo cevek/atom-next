@@ -1,6 +1,6 @@
 import { clearParentsJson, TreeMeta } from './TreeMeta';
 import { AtomCalc, AtomValue } from './Atom';
-import { ClassMeta } from './ClassMeta';
+import { ClassMeta, transformValue } from './ClassMeta';
 import { This } from './Entity';
 import { neverPossible, toJSON } from './utils';
 import { createField } from './Field';
@@ -11,9 +11,10 @@ function mutate<Ret>(arr: HashMap) {
 
 export function factoryMap<T>(
     elementClassMeta: ClassMeta,
-    values: { [key: string]: T } | Map<string | number, T>,
+    values: { [key: string]: T } | Map<string | number, T> | undefined,
     map: HashMap<T> | undefined
 ) {
+    if (values === undefined) return undefined;
     if (map === undefined) {
         map = new HashMap<T>(elementClassMeta);
     } else {
@@ -30,6 +31,7 @@ export function factoryMap<T>(
             map.set(key, values[key]);
         }
     }
+    return map;
 }
 
 export class HashMap<T = {}> implements This {
@@ -142,6 +144,7 @@ export class HashMap<T = {}> implements This {
             json[key] = toJSON(value);
         }
         this._treeMeta.json = json;
+        return json;
     }
 
     [Symbol.iterator]() {

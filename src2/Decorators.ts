@@ -34,6 +34,7 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                 }
                 attachObject(this, value);
                 atom.set(value);
+                clearParentsJson(treeMeta);
             },
         });
     }

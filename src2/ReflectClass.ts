@@ -28,7 +28,6 @@ function parseFieldsFromCtor(Class: Function, prototype: ReflectClassResult['pro
     let m;
     let keyMap: { [key: string]: boolean } = {};
     while ((m = re.exec(source))) {
-        const key = m[1];
         keyMap[m[1]] = true;
     }
     return Object.keys(keyMap);

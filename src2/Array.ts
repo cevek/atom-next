@@ -31,7 +31,7 @@ export class ArrayProxy<T = {}> implements This {
     }
 
     constructor(public elementClassMeta: ClassMeta, values: T[] = []) {
-        this._values = values;
+        this._values = values.slice();
         this._classMeta.fields.push(createField('element', elementClassMeta));
     }
 

@@ -2,6 +2,7 @@ import { getObjTreeMeta } from './TreeMeta';
 import { This } from './Entity';
 import { glob } from './Glob';
 
+export type JsonType = undefined | null | {} | { [key: string]: JsonType };
 
 export function toJSON(obj: any) {
     if (obj === null || typeof obj !== 'object') return obj;
@@ -48,6 +49,6 @@ export function checkWeAreInAction() {
     }
 }
 
-export function neverPossible() {
+export function neverPossible(): never {
     throw new Error('Never possible');
 }
