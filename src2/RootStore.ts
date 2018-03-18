@@ -30,7 +30,7 @@ export class RootStore implements This {
     // roots: { [key: string]: { default: This | undefined; ids: { [key: string]: This } } } = {};
     // _factoryMap = new Map<string, number>();
 
-    constructor(private stores: (EntityClassPublic)[]) {
+    constructor(private stores: (EntityClassPublic)[], private options: { idKey?: string } = {}) {
         this._treeMeta.parent = this as any;
         this._classMeta.fields = [createField('lastId', undefined)];
         if (stores !== undefined) {
