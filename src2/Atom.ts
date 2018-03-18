@@ -223,12 +223,6 @@ function getCalc<T>(atom: AtomCalc<T>) {
     processMaster(atom);
     return atom.value;
 }
-function getForceCalc<T>(atom: AtomCalc<T>) {
-    atom.masters = undefined!;
-    calcIfNeeded(atom);
-    processMaster(atom);
-    return atom.value;
-}
 
 function setValue(atom: AtomValue, value: {}) {
     atom.value = value;

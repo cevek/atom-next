@@ -1,10 +1,9 @@
-import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
+import { attachObject, clearParentsJson, detachObject, TreeMeta } from './TreeMeta';
 import { checkWeAreInAction, neverPossible, toJSON } from './utils';
 import { AtomValue } from './Atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
-import { createField, Field } from './Field';
-import { glob } from './Glob';
+import { createField } from './Field';
 
 let version = 0;
 function mutate<Ret>(arr: ArrayProxy) {
@@ -12,53 +11,13 @@ function mutate<Ret>(arr: ArrayProxy) {
     clearParentsJson(arr._treeMeta);
 }
 
-function attachJsonItem(arr: ArrayProxy, field: Field, value: any, i: number) {
-    if (field.classMeta !== undefined) {
-        value = field.classMeta.factory(value, arr._values[i]);
-    }
-    attachObject(arr, value);
-    return value;
-}
-
-export function setArrayData(arr: ArrayProxy, json: any[]) {
-    try {
-        glob.inTransaction = true;
-        const field = arr._classMeta.fields[0];
-        if (json instanceof Array) {
-            const min = Math.min(arr._values.length, json.length);
-            for (let i = 0; i < min; i++) {
-                const childTreeMeta = getObjTreeMeta(arr._values[i]);
-                if (childTreeMeta === undefined || childTreeMeta.json !== json[i]) {
-                    arr._values[i] = attachJsonItem(arr, field, json[i], i);
-                }
-            }
-            for (let i = min; i < arr._values.length; i++) {
-                detachObject(arr._values[i]);
-            }
-            for (let i = min; i < json.length; i++) {
-                arr._values[i] = attachJsonItem(arr, field, json[i], i);
-            }
-            arr._values.length = json.length;
-            arr._version.set(version++);
-        }
-    } finally {
-        glob.inTransaction = false;
-    }
-}
-
-export function toJSONArray(arr: ArrayProxy) {
-    if (arr._treeMeta.json !== undefined) return arr._treeMeta.json;
-    const newArr = Array(arr.length);
-    for (let i = 0; i < arr._values.length; i++) {
-        const item = arr._values[i];
-        newArr[i] = toJSON(item as This);
-    }
-    arr._treeMeta.json = newArr;
-    return newArr;
-}
-
-export function arrayFactory(elementClassMeta: ClassMeta, json: any, prevValue: any) {
-    return new ArrayProxy(elementClassMeta, json);
+export function arrayFactory(
+    elementClassMeta: ClassMeta,
+    json: ArrayProxy | {}[] | undefined,
+    prevValue: ArrayProxy | undefined
+) {
+    if (json === undefined) return undefined;
+    return new ArrayProxy(elementClassMeta, json instanceof ArrayProxy ? json._values : json);
 }
 
 export class ArrayProxy<T = {}> implements This {
