@@ -33,7 +33,7 @@ export function attach(parent: TreeMeta, treeMeta: TreeMeta) {
     if (treeMeta.id === undefined) {
         const rootStore = getRootStore(parent);
         if (rootStore !== undefined) {
-            treeMeta.id = rootStore.lastId++;
+            treeMeta.id = rootStore.createId();
         }
     }
 }

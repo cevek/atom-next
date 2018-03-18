@@ -24,14 +24,17 @@ export interface Action {
 export class RootStore implements This {
     _treeMeta = new TreeMeta();
     _classMeta!: ClassMeta;
-    lastId = 1;
+    lastId = 0;
+    createId() {
+        return ++this.lastId;
+    }
+
     // _reducersMap = new Map<string, Function>();
     _reduxStore!: CustomStore;
     // roots: { [key: string]: { default: This | undefined; ids: { [key: string]: This } } } = {};
 
     constructor(private stores: (new () => {})[], private options: { idKey?: string } = {}) {
         this._treeMeta.parent = (this as {}) as TreeMeta; // hack
-        this._classMeta.fields = [createField('lastId', undefined)];
         if (stores !== undefined) {
             stores.forEach(Store => this.getInstance(Store));
         }
@@ -56,16 +59,17 @@ export class RootStore implements This {
         const classMeta = getClassMetaOrThrow(Cls);
         registerClass(this, classMeta);
         const key = Cls.name;
-        let instance = this._treeMeta.atoms[key].get();
-        if (instance === undefined) {
+        let atom = this._treeMeta.atoms[key];
+        if (atom === undefined) {
             const field = createField(key, classMeta);
             field.subClassMeta.push(classMeta);
             const instance = new Cls();
             this._treeMeta.atoms[key] = new AtomValue(instance);
             attachObject(this, instance);
             this._classMeta.fields.push(field);
+            this._treeMeta.atoms[key] = atom = new AtomValue(instance);
         }
-        return (instance as {}) as T;
+        return atom.get() as T;
     }
 
     reducer = (state: {}, action: Action) => {
@@ -89,7 +93,7 @@ export class RootStore implements This {
 
     toJSON() {
         if (this._treeMeta.json !== undefined) return this._treeMeta.json;
-        const json: JsonType = {};
+        const json: JsonType = { lastId: this.lastId } as {};
         const fields = this._classMeta.fields;
         for (let i = 0; i < fields.length; i++) {
             const key = fields[i].name;
@@ -105,6 +109,7 @@ RootStore.prototype._classMeta = new ClassMeta(neverPossible);
 function applyNewState(rootStore: RootStore, json: JsonType) {
     if (json === undefined) return json;
     const fields = rootStore._classMeta.fields;
+    rootStore.lastId = (json.lastId as {}) as number;
     const prevInTransaction = glob.inTransaction;
     try {
         glob.inTransaction = true;
