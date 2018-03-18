@@ -1,7 +1,7 @@
 import { glob } from './Glob';
 import { getRootStore } from './TreeMeta';
-import { toJSON } from './utils';
-import { diff } from './diff';
+import { toJSON } from './Utils';
+import { diff } from './Diff';
 import { This } from './Entity';
 import { run } from './Atom';
 

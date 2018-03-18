@@ -5,7 +5,7 @@ import { EntityClass, EntityClassPublic, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';
 import { arrayFactory, ArrayProxy } from './Array';
 import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField, transformValue } from './ClassMeta';
-import { checkWeAreInAction, toJSON } from './utils';
+import { checkWeAreInAction, toJSON } from './Utils';
 import { factoryMap, HashMap } from './HashMap';
 import { glob } from './Glob';
 import { createField } from './Field';

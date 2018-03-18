@@ -1,4 +1,4 @@
-import { convertPayloadToPlainObject, neverPossible, toJSON } from './utils';
+import { convertPayloadToPlainObject, neverPossible, toJSON } from './Utils';
 import { attachObject, TreeMeta } from './TreeMeta';
 import { ClassMeta, getClassMetaOrThrow, transformValue } from './ClassMeta';
 import { EntityClass, EntityClassPublic, This } from './Entity';

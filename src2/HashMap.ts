@@ -2,7 +2,7 @@ import { clearParentsJson, TreeMeta } from './TreeMeta';
 import { AtomCalc, AtomValue } from './Atom';
 import { ClassMeta, transformValue } from './ClassMeta';
 import { This } from './Entity';
-import { neverPossible, toJSON } from './utils';
+import { neverPossible, toJSON } from './Utils';
 import { createField } from './Field';
 
 function mutate<Ret>(arr: HashMap) {

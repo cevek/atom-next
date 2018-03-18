@@ -1,5 +1,5 @@
 import { attachObject, clearParentsJson, detachObject, TreeMeta } from './TreeMeta';
-import { checkWeAreInAction, neverPossible, toJSON } from './utils';
+import { checkWeAreInAction, neverPossible, toJSON } from './Utils';
 import { AtomValue } from './Atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
