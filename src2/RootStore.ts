@@ -1,8 +1,10 @@
 import { convertPayloadToPlainObject, neverPossible, toJSON } from './utils';
 import { attachObject, TreeMeta } from './TreeMeta';
-import { ClassMeta, getClassMetaOrThrow } from './ClassMeta';
+import { ClassMeta, getClassMetaOrThrow, transformValue } from './ClassMeta';
 import { EntityClass, EntityClassPublic, This } from './Entity';
 import { createField } from './Field';
+import { glob } from './Glob';
+import { run } from './Atom';
 
 export type Store<T> = {
     getState(): T;
@@ -41,11 +43,11 @@ export class RootStore implements This {
         this._reduxStore.atomStore = this;
         store.subscribe(() => {
             const state = store.getState();
+            if (glob.inTransaction) {
+                return;
+            }
             if (state !== undefined) {
-                const stateFromThisStore = toJSON(this);
-                if (state !== stateFromThisStore) {
-                    // todo:
-                }
+                applyNewState(this, state);
             }
         });
     }
@@ -68,8 +70,16 @@ export class RootStore implements This {
     }
 
     reducer = (state: {}, action: Action): {} => {
-        // return patch(state, action.payload);
-        return state;
+        return toJSON(this);
+        // if (glob.inTransaction) {
+        //     return currentState;
+        // } else {
+        //     if (action.type === '@@INIT') return currentState;
+        //     if (currentState !== state) return neverPossible();
+        //     const newState = patch(currentState, action.payload);
+        //     applyNewState(this, newState);
+        //     return newState;
+        // }
     };
 
     dispatch(type: string, thisArg: This, payload: {}) {
@@ -92,6 +102,21 @@ export class RootStore implements This {
 }
 
 RootStore.prototype._classMeta = new ClassMeta(neverPossible);
+
+function applyNewState(rootStore: RootStore, json: any) {
+    const fields = rootStore._classMeta.fields;
+    const prevInTransaction = glob.inTransaction;
+    try {
+        glob.inTransaction = true;
+        for (let i = 0; i < fields.length; i++) {
+            const field = fields[i];
+            (rootStore as any)[field.name] = transformValue(field, json[field.name], (rootStore as any)[field.name]);
+        }
+    } finally {
+        glob.inTransaction = prevInTransaction;
+        run();
+    }
+}
 
 function registerClass(rootStore: RootStore, classMeta: ClassMeta) {
     const { reducers, fields } = classMeta;
