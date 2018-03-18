@@ -104,11 +104,8 @@ export class HashMap<T = {}> implements This {
     set(key: string | number, value: T) {
         const treeMeta = this._treeMeta;
         const atom = treeMeta.atoms[key];
-        const valueClassMeta = this._classMeta.fields[0].classMeta;
-        if (valueClassMeta !== undefined) {
-            const prevValue = atom === undefined ? undefined : atom.get();
-            value = valueClassMeta.factory(value, prevValue);
-        }
+        const prevValue = atom === undefined ? undefined : atom.get();
+        value = transformValue(this._classMeta.fields[0], value, prevValue);
         if (atom === undefined) {
             treeMeta.atoms[key] = new AtomValue(value);
         } else {

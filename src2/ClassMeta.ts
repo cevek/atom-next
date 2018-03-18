@@ -1,5 +1,5 @@
 import { createField, Field } from './Field';
-import { EntityClass, This } from './Entity';
+import { EntityClass } from './Entity';
 
 export interface Reducer {
     name: string;
@@ -9,7 +9,7 @@ export interface Reducer {
 export class ClassMeta {
     fields: Field[] = [];
     reducers: Reducer[] = [];
-    constructor(public factory: (json: any, prevValue: any) => any) {}
+    constructor(public factory: (json: {} | undefined, prevValue: {} | undefined) => any) {}
 }
 
 export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassMeta: ClassMeta | undefined) {
@@ -21,7 +21,6 @@ export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassM
     return field;
 }
 
-
 export function getOrCreateClassMeta(Class: EntityClass, factory: (json: any, prevValue: any) => any) {
     let classMeta = Class.prototype._classMeta;
     if (classMeta === undefined) {
@@ -30,19 +29,18 @@ export function getOrCreateClassMeta(Class: EntityClass, factory: (json: any, pr
     return classMeta;
 }
 
-export function getClassMetaFromObject(obj: any) {
-    if (obj instanceof Object) {
-        const Class = obj.constructor;
-        if (Class instanceof Function) {
-            return (Class.prototype as This)._classMeta;
-        }
-    }
-    return;
-}
 export function getClassMetaOrThrow(Class: EntityClass) {
     let classMeta = Class.prototype._classMeta;
     if (classMeta === undefined) {
         throw new Error(`Class ${Class.name} is not registered`);
     }
     return classMeta;
+}
+
+export function transformValue(field: Field, value: {} | undefined, prevValue: {} | undefined) {
+    const valueClassMeta = field.classMeta;
+    if (valueClassMeta !== undefined) {
+        return valueClassMeta.factory(value, prevValue);
+    }
+    return value;
 }

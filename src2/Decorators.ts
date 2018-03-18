@@ -25,10 +25,8 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                     treeMeta = this._treeMeta = new TreeMeta();
                 }
                 let atom = treeMeta.atoms[prop] as AtomValue | undefined;
-                if (field.classMeta !== undefined) {
-                    const prev = atom === undefined ? undefined : atom.get();
-                    value = field.classMeta.factory(value, prev);
-                }
+                const prevValue = atom === undefined ? undefined : atom.get();
+                value = transformValue(field, value, prevValue);
                 if (typeof atom === 'undefined') {
                     treeMeta.atoms[prop] = atom = new AtomValue(value);
                 } else {
