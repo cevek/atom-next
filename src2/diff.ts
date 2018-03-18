@@ -1,15 +1,14 @@
-interface Item {
-    id: number;
-}
-
 const enum Code {
-    SET_ARRAY = 'a',
-    PATCH_ARRAY = 'pa',
+    SET_ARRAY = 'array',
+    PATCH_ARRAY = 'patchArray',
     UNDEFINED = 'undefined',
-    DATE = 'd',
+    DATE = 'date',
     DELETE = 'del',
 }
-
+const enum ArrayCode {
+    ARRAY_UPDATE_ITEM = 'patch',
+    ARRAY_NEW_ITEM = 'new',
+}
 function isObject(a: any) {
     return a !== null && typeof a === 'object';
 }
@@ -27,32 +26,47 @@ function handleType(a: any): any {
     return a;
 }
 
-function diffA(a: Item[], b: Item[]): any[] {
+function diffA(a: any[], b: any[], idKey: string): any[] {
     const res: any[] = [Code.PATCH_ARRAY];
     let start = 0;
     let end = b.length;
     const lenDiff = b.length - a.length;
     while (start < a.length && start < b.length && a[start] === b[start]) start++;
-    while (end > lenDiff && end > 0 && a[end - 1 - lenDiff] === b[end - 1]) end--;
+    while (end > lenDiff + start && end > start && a[end - 1 - lenDiff] === b[end - 1]) end--;
 
     if (start > 0) res.push(-start);
     if (end - start > 0) {
-        const map: any = {};
-        for (let i = start; i < end - lenDiff; i++) {
-            const item = a[i];
-            map[item.id] = i;
-        }
+        const aCopy = a.slice();
         for (let i = start; i < end; i++) {
             const item = b[i];
-            const pos = map[item.id];
-            if (pos === undefined) {
-                res.push([-1, handleType(item)]);
+            let pos = -1;
+            // check by link
+            for (let j = start; j < end - lenDiff; j++) {
+                if (a[j] === item) {
+                    pos = j;
+                    break;
+                }
+            }
+            // check by object ids
+            if (pos === -1 && item.id !== undefined) {
+                const itemId = item[idKey];
+                for (let j = start; j < end - lenDiff; j++) {
+                    const val = aCopy[j];
+                    if (val !== null && typeof val === 'object' && val[idKey] === itemId) {
+                        pos = j;
+                        break;
+                    }
+                }
+            }
+            if (pos === -1) {
+                res.push([ArrayCode.ARRAY_NEW_ITEM, handleType(item)]);
             } else {
+                aCopy[pos] = null!;
                 if (a[pos] === b[i]) {
                     res.push(pos);
                 } else {
-                    const diffRes = diff(a[pos], b[i]);
-                    res.push([pos, diffRes]);
+                    const diffRes = diff(a[pos], b[i], idKey);
+                    res.push([ArrayCode.ARRAY_UPDATE_ITEM, pos, diffRes]);
                 }
             }
         }
@@ -61,7 +75,7 @@ function diffA(a: Item[], b: Item[]): any[] {
     return res;
 }
 
-export function diff(a: any, b: any) {
+export function diff(a: any, b: any, idKey = 'id') {
     if (a === b) {
         return {};
     }
@@ -80,13 +94,13 @@ export function diff(a: any, b: any) {
             for (let i = 0; i < bKeys.length; i++) {
                 const key = bKeys[i];
                 if (a[key] !== b[key]) {
-                    ret[key] = diff(a[key], b[key]);
+                    ret[key] = diff(a[key], b[key], idKey);
                 }
             }
             return ret;
         }
         if (a instanceof Array) {
-            return diffA(a, b);
+            return diffA(a, b, idKey);
         }
         return handleType(b);
     }
@@ -95,28 +109,31 @@ export function diff(a: any, b: any) {
 
 function patchArray(oldArr: any[], p: any[]) {
     const newArr = [];
+    let left = 0;
     if (p[1] < 0) {
-        const left = -p[1];
+        left = -p[1];
         for (let i = 0; i < left; i++) {
-            newArr.push(oldArr[i]);
+            newArr.push(patch(oldArr[i], oldArr[i]));
         }
     }
     for (let i = 1; i < p.length; i++) {
         const item = p[i];
         if (item >= 0) {
-            newArr.push(oldArr[item]);
+            newArr.push(patch(oldArr[item], oldArr[item]));
         } else if (item < 0) {
         } else if (Array.isArray(item)) {
-            if (item[0] === -1) {
-                newArr.push(item[1]);
+            if (item[0] === ArrayCode.ARRAY_NEW_ITEM) {
+                newArr.push(patch(undefined!, item[1]));
+            } else if (item[0] === ArrayCode.ARRAY_UPDATE_ITEM) {
+                newArr.push(patch(oldArr[item[1]], item[2]));
             } else {
-                newArr.push(patch(oldArr[item[0]], item[1]));
+                never(item as never);
             }
         } else {
-            console.error('Unexpected patch value: ' + JSON.stringify(item));
+            never(item as never);
         }
     }
-    if (p[p.length - 1] < 0) {
+    if ((left === 0 || p.length > 2) && p[p.length - 1] < 0) {
         const right = -p[p.length - 1];
         for (let i = oldArr.length - right; i < oldArr.length; i++) {
             newArr.push(oldArr[i]);
