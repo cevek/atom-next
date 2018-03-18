@@ -1,12 +1,12 @@
 import { reflectClass, ReflectClassResult } from './ReflectClass';
 import { Atom, AtomCalc, AtomValue } from './Atom';
-import { attachObject, TreeMeta } from './TreeMeta';
+import { attachObject, clearParentsJson, TreeMeta } from './TreeMeta';
 import { EntityClass, EntityClassPublic, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';
-import { arrayFactory } from './Array';
-import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField } from './ClassMeta';
+import { arrayFactory, ArrayProxy } from './Array';
+import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField, transformValue } from './ClassMeta';
 import { checkWeAreInAction, toJSON } from './utils';
-import { factoryMap } from './HashMap';
+import { factoryMap, HashMap } from './HashMap';
 import { glob } from './Glob';
 import { createField } from './Field';
 
@@ -78,7 +78,7 @@ export function entity<Class extends EntityClassPublic>(target: Class): Class {
     const Target = target as EntityClass;
     const { prototype, props } = reflectClass(Target);
     const classMeta = getOrCreateClassMeta(Target, undefined!);
-    classMeta.factory = json => factoryEntity(new Target(), json);
+    classMeta.factory = (json, prev) => factoryEntity(Target, json, prev as This);
     Target.prototype._classMeta = classMeta;
     setPropsGetters(Target, classMeta, props);
     setMethods(Target, classMeta, prototype);
@@ -90,8 +90,8 @@ export function array<T>(Cls: new () => T) {
         const Class = (Cls as {}) as EntityClass;
         const Target = targetProto.constructor as EntityClass;
         const elementClassMeta = getClassMetaOrThrow(Class);
-        const arrayClassMeta = new ClassMeta((json: any, prevValue: any) =>
-            arrayFactory(elementClassMeta, json, prevValue)
+        const arrayClassMeta = new ClassMeta((json, prevValue) =>
+            arrayFactory(elementClassMeta, json as {}[], prevValue as ArrayProxy)
         );
         const classMeta = getOrCreateClassMeta(Target, undefined!);
         const field = createField(prop, arrayClassMeta);
@@ -108,7 +108,7 @@ export function hash<T>(Cls: new () => T) {
         const Target = targetProto.constructor as EntityClass;
 
         const elementClassMeta = getClassMetaOrThrow(Class);
-        const mapClassMeta = new ClassMeta((json: any, prev: any) => factoryMap(elementClassMeta, json, prev));
+        const mapClassMeta = new ClassMeta((json, prev) => factoryMap(elementClassMeta, json, prev as HashMap));
 
         const classMeta = getOrCreateClassMeta(Target, undefined!);
         const field = createField(prop, mapClassMeta);
@@ -128,18 +128,23 @@ export function sub<T>(Cls: new (...args: any[]) => T) {
     };
 }
 
-function factoryEntity(obj: This, json: any) {
+function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefined, prev: This | undefined) {
+    if (json === undefined) return undefined;
+    const prevInTransaction = glob.inTransaction;
     try {
         glob.inTransaction = true;
-        const treeMeta = obj._treeMeta;
-        const classMeta = obj._classMeta;
+        if (prev === undefined) {
+            prev = new Target();
+        }
+        // const treeMeta = prev._treeMeta;
+        const classMeta = prev._classMeta;
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
-            (obj as any)[field.name] = json[field.name];
+            (prev as any)[field.name] = json[field.name];
         }
         // treeMeta.json = json;
-        return obj;
+        return prev;
     } finally {
-        glob.inTransaction = false;
+        glob.inTransaction = prevInTransaction;
     }
 }
