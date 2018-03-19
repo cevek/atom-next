@@ -7,7 +7,8 @@
         "strict": true,
         "skipLibCheck": true,
         "sourceMap": true,
-        "experimentalDecorators": true
+        "experimentalDecorators": true,
+        "suppressImplicitAnyIndexErrors": true
     },
     "files": ["src2/example.tsx"]
 }

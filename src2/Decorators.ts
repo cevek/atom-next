@@ -5,7 +5,7 @@ import { EntityClass, This } from './Entity';
 import { createActionFactory } from './CreateActionFactory';
 import { arrayFactory, ArrayProxy } from './Array';
 import { ClassMeta, getClassMetaOrThrow, getOrCreateClassMeta, getOrCreateField, transformValue } from './ClassMeta';
-import { checkWeAreInAction, Index, JsonType, toJSON } from './Utils';
+import { checkWeAreInAction, toJSON } from './Utils';
 import { factoryMap, HashMap } from './HashMap';
 import { glob } from './Glob';
 import { createField } from './Field';
@@ -65,10 +65,10 @@ function setMethods(Target: Function, classMeta: ClassMeta, prototype: ReflectCl
         if (treeMeta === undefined) return {};
         const classMeta = this._classMeta;
         if (treeMeta.json !== undefined) return treeMeta.json;
-        const json: JsonType = {};
+        const json = {};
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
-            json[field.name] = toJSON(((this as {}) as Index)[field.name]);
+            json[field.name] = toJSON(this[field.name]);
         }
         treeMeta.json = json;
         return json;
@@ -141,7 +141,7 @@ function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefi
         const classMeta = (prev as This)._classMeta;
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
-            (prev as Index)[field.name] = json[field.name];
+            prev[field.name] = json[field.name];
         }
         // treeMeta.json = json;
         return prev;

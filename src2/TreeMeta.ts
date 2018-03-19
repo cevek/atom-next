@@ -1,12 +1,11 @@
 import { AtomValue } from './Atom';
 import { This } from './Entity';
 import { RootStore } from './RootStore';
-import { JsonType } from './Utils';
 
 export class TreeMeta<T = {}> {
     id: string | number | undefined = undefined;
     parent: TreeMeta | undefined = undefined;
-    json: JsonType = undefined;
+    json: {} | undefined = undefined;
     atoms: { [key: string]: AtomValue } = {};
 }
 

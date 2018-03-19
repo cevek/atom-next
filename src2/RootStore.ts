@@ -1,4 +1,4 @@
-import { convertPayloadToPlainObject, JsonType, neverPossible, toJSON } from './Utils';
+import { convertPayloadToPlainObject, neverPossible, toJSON } from './Utils';
 import { attachObject, TreeMeta } from './TreeMeta';
 import { ClassMeta, getClassMetaOrThrow, transformValue } from './ClassMeta';
 import { EntityClass, This } from './Entity';
@@ -93,7 +93,7 @@ export class RootStore implements This {
 
     toJSON() {
         if (this._treeMeta.json !== undefined) return this._treeMeta.json;
-        const json: JsonType = { lastId: this.lastId } as {};
+        const json = { lastId: this.lastId };
         const fields = this._classMeta.fields;
         for (let i = 0; i < fields.length; i++) {
             const key = fields[i].name;
@@ -106,10 +106,10 @@ export class RootStore implements This {
 
 RootStore.prototype._classMeta = new ClassMeta(neverPossible);
 
-function applyNewState(rootStore: RootStore, json: JsonType) {
+function applyNewState(rootStore: RootStore, json: {}) {
     if (json === undefined) return json;
     const fields = rootStore._classMeta.fields;
-    rootStore.lastId = (json.lastId as {}) as number;
+    rootStore.lastId = json['lastId'];
     const prevInTransaction = glob.inTransaction;
     try {
         glob.inTransaction = true;

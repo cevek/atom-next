@@ -1,5 +1,5 @@
 import { attachObject, clearParentsJson, detachObject, TreeMeta } from './TreeMeta';
-import { checkWeAreInAction, Index, neverPossible, toJSON } from './Utils';
+import { checkWeAreInAction, neverPossible, toJSON } from './Utils';
 import { AtomValue } from './Atom';
 import { ClassMeta } from './ClassMeta';
 import { This } from './Entity';
@@ -139,12 +139,10 @@ const immutableMethods = [
     'reduce',
     'reduceRight',
 ];
-const arrayProto = (Array.prototype as {}) as Index<Function>;
-const arrayProxyProto = (ArrayProxy.prototype as {}) as Index<Function>;
 for (let i = 0; i < immutableMethods.length; i++) {
     const method = immutableMethods[i];
-    const fn = arrayProto[method];
-    arrayProxyProto[method] = function(this: ArrayProxy) {
+    const fn = Array.prototype[method];
+    ArrayProxy.prototype[method] = function(this: ArrayProxy) {
         this._version.get();
         return fn.apply(this._values, arguments);
     };

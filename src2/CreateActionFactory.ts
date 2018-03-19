@@ -14,10 +14,10 @@ export function createActionFactory(type: string, reducer: Function) {
             glob.inTransaction = true;
             try {
                 const rootStore = getRootStore(this._treeMeta);
-                if (rootStore !== void 0) {
+                if (rootStore !== undefined) {
                     const oldState = toJSON(rootStore);
                     reducer.call(this, payload);
-                    rootStore.dispatch(type, this, diff(oldState, toJSON(rootStore)));
+                    rootStore.dispatch(type, this, diff(oldState, toJSON(rootStore)!));
                 } else {
                     throw new Error('This object is not in the store tree');
                 }
