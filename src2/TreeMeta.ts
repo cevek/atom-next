@@ -28,6 +28,9 @@ export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
 }
 
 export function attach(parent: TreeMeta, treeMeta: TreeMeta) {
+    if (treeMeta.parent !== undefined) {
+        throw new Error('You cannot reassign value to the tree, first you need to detach your current assignment');
+    }
     treeMeta.parent = parent;
     if (treeMeta.id === undefined) {
         const rootStore = getRootStore(parent);
@@ -37,8 +40,11 @@ export function attach(parent: TreeMeta, treeMeta: TreeMeta) {
     }
 }
 
-export function attachObject(current: This, value: {}) {
+export function attachObject(current: This, value: {}, prevValue: {} | undefined) {
     const valueTreeMeta = getObjTreeMeta(value);
+    if (prevValue !== undefined) {
+        detachObject(prevValue);
+    }
     if (valueTreeMeta !== undefined) {
         attach(current._treeMeta, valueTreeMeta);
     }
@@ -48,7 +54,7 @@ export function detach(treeMeta: TreeMeta) {
     treeMeta.parent = undefined;
 }
 
-export function getObjTreeMeta<T>(obj: {}) {
+export function getObjTreeMeta<T>(obj: {} | undefined) {
     if (obj instanceof Object) {
         return (obj as This)._treeMeta;
     }

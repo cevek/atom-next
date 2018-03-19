@@ -32,7 +32,7 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                 } else {
                     checkWeAreInAction();
                 }
-                attachObject(this, value);
+                attachObject(this, value, prevValue);
                 atom.set(value);
                 clearParentsJson(treeMeta);
             },

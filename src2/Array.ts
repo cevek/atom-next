@@ -34,7 +34,7 @@ export class ArrayProxy<T = {}> implements This {
         checkWeAreInAction();
         const ret = this._values.push(...items);
         for (let i = 0; i < items.length; i++) {
-            attachObject(this, items[i]);
+            attachObject(this, items[i], undefined);
         }
         mutate(this);
         return ret;
@@ -44,7 +44,7 @@ export class ArrayProxy<T = {}> implements This {
         checkWeAreInAction();
         const ret = this._values.unshift(...items);
         for (let i = 0; i < items.length; i++) {
-            attachObject(this, items[i]);
+            attachObject(this, items[i], undefined);
         }
         mutate(this);
         return ret;
@@ -78,7 +78,7 @@ export class ArrayProxy<T = {}> implements This {
             detachObject(ret[i]);
         }
         for (let i = 0; i < items.length; i++) {
-            attachObject(this, items[i]);
+            attachObject(this, items[i], undefined);
         }
         mutate(this);
         return ret;
@@ -99,7 +99,7 @@ export class ArrayProxy<T = {}> implements This {
     set(idx: number, value: T) {
         mutate(this);
         detachObject(this._values[idx]);
-        attachObject(this, value);
+        attachObject(this, value, undefined);
         this._values[idx] = value;
     }
 

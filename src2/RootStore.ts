@@ -65,7 +65,7 @@ export class RootStore implements This {
             field.subClassMeta.push(classMeta);
             const instance = new Cls();
             this._treeMeta.atoms[key] = new AtomValue(instance);
-            attachObject(this, instance);
+            attachObject(this, instance, undefined);
             this._classMeta.fields.push(field);
             this._treeMeta.atoms[key] = atom = new AtomValue(instance);
         }
