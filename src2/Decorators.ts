@@ -129,8 +129,7 @@ export function sub<T>(Cls: new () => T) {
     };
 }
 
-function factoryEntity(Target: EntityClass, json: { [key: string]: {} } | undefined, prev: {} | undefined) {
-    if (json === undefined) return undefined;
+function factoryEntity(Target: EntityClass, json: {}, prev: {} | undefined) {
     const prevInTransaction = glob.inTransaction;
     try {
         glob.inTransaction = true;

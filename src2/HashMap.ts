@@ -11,13 +11,10 @@ function mutate<Ret>(arr: HashMap) {
 
 export function factoryMap<T>(
     elementClassMeta: ClassMeta,
-    values: { [key: string]: T } | Map<string | number, T> | undefined,
-    map: HashMap<T> | undefined
+    values: { [key: string]: T } | Map<string | number, T>,
+    map: HashMap<T> = new HashMap<T>(elementClassMeta)
 ) {
-    if (values === undefined) return undefined;
-    if (map === undefined) {
-        map = new HashMap<T>(elementClassMeta);
-    } else {
+    if (map.keys().length) {
         map.clear();
     }
     if (values instanceof Map) {

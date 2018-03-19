@@ -11,12 +11,7 @@ function mutate<Ret>(arr: ArrayProxy) {
     clearParentsJson(arr._treeMeta);
 }
 
-export function arrayFactory(
-    elementClassMeta: ClassMeta,
-    json: ArrayProxy | {}[] | undefined,
-    prevValue: ArrayProxy | undefined
-) {
-    if (json === undefined) return undefined;
+export function arrayFactory(elementClassMeta: ClassMeta, json: ArrayProxy | {}[], prevValue: ArrayProxy | undefined) {
     return new ArrayProxy(elementClassMeta, json instanceof ArrayProxy ? json._values : json);
 }
 
