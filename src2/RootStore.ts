@@ -1,4 +1,4 @@
-import { convertPayloadToPlainObject, neverPossible, toJSON } from './Utils';
+import { neverPossible, toJSON } from './Utils';
 import { attachObject, TreeMeta } from './TreeMeta';
 import { ClassMeta, getClassMetaOrThrow, transformValue } from './ClassMeta';
 import { EntityClass, This } from './Entity';
@@ -86,7 +86,6 @@ export class RootStore implements This {
     };
 
     dispatch(type: string, thisArg: This, payload: {}) {
-        payload = convertPayloadToPlainObject(payload);
         const action: Action = { type: type, path: thisArg._treeMeta.id, payload };
         this._reduxStore.dispatch(action);
     }
