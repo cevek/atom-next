@@ -1,7 +1,7 @@
 import { attachObject, clearParentsJson, detachObject, TreeMeta } from './TreeMeta';
 import { checkWeAreInAction, neverPossible, toJSON } from './Utils';
 import { AtomValue } from './Atom';
-import { ClassMeta } from './ClassMeta';
+import { ClassMeta, transformValue } from './ClassMeta';
 import { This } from './Entity';
 import { createField } from './Field';
 
@@ -11,8 +11,18 @@ function mutate<Ret>(arr: ArrayProxy) {
     clearParentsJson(arr._treeMeta);
 }
 
-export function arrayFactory(elementClassMeta: ClassMeta, json: ArrayProxy | {}[], prevValue: ArrayProxy | undefined) {
-    return new ArrayProxy(elementClassMeta, json instanceof ArrayProxy ? json._values : json);
+export function arrayFactory(
+    elementClassMeta: ClassMeta | undefined,
+    json: ArrayProxy | {}[],
+    array: ArrayProxy | undefined = new ArrayProxy(elementClassMeta)
+) {
+    for (let i = 0; i < json.length; i++) {
+        array.set(i, json[i]);
+    }
+    for (let i = array.length - 1; i >= json.length; i--) {
+        array.pop();
+    }
+    return array;
 }
 
 export class ArrayProxy<T = {}> implements This {
@@ -25,8 +35,7 @@ export class ArrayProxy<T = {}> implements This {
         return this._values.length;
     }
 
-    constructor(public elementClassMeta: ClassMeta, values: T[] = []) {
-        this._values = values.slice();
+    constructor(elementClassMeta: ClassMeta | undefined) {
         this._classMeta.fields.push(createField('element', elementClassMeta));
     }
 
@@ -98,8 +107,9 @@ export class ArrayProxy<T = {}> implements This {
 
     set(idx: number, value: T) {
         mutate(this);
-        detachObject(this._values[idx]);
-        attachObject(this, value, undefined);
+        const prevValue = idx < this._values.length ? this._values[idx] : undefined;
+        value = transformValue(this._classMeta.fields[0], value, prevValue);
+        attachObject(this, value, prevValue);
         this._values[idx] = value;
     }
 
