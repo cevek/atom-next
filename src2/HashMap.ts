@@ -1,72 +1,65 @@
-import { clearParentsJson, TreeMeta } from './TreeMeta';
-import { AtomCalc, AtomValue } from './Atom';
-import { ClassMeta, transformValue } from './ClassMeta';
-import { This } from './Entity';
-import { neverPossible, toJSON } from './Utils';
+import { clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
+import { AtomValue } from './Atom';
+import { ClassMeta, getClassMetaFromObj, getClassMetaOrThrow, getOrCreateClassMeta, transformValue } from './ClassMeta';
+import { checkWeAreInAction, toJSON } from './Utils';
+import { entity, skip } from './Decorators';
+import { EntityClass } from './Entity';
 import { createField } from './Field';
 
 function mutate<Ret>(arr: HashMap) {
-    clearParentsJson(arr._treeMeta);
+    clearParentsJson(getObjTreeMeta(arr)!);
 }
 
 export function factoryMap<T>(
-    elementClassMeta: ClassMeta,
-    values: { [key: string]: T } | Map<string | number, T>,
-    map: HashMap<T> = new HashMap<T>(elementClassMeta)
+    elementClassMeta: ClassMeta | undefined,
+    values: { [key: string]: T },
+    map: HashMap<T> | undefined
 ) {
-    if (map.keys().length) {
+    if (values instanceof HashMap) return values;
+    if (map !== undefined) {
         map.clear();
-    }
-    if (values instanceof Map) {
-        for (let [key, value] of values) {
-            map.set(key, value);
-        }
     } else {
-        const keys = Object.keys(values);
-        for (let i = 0; i < keys.length; i++) {
-            const key = keys[i];
-            map.set(key, values[key]);
-        }
+        map = new HashMap<T>();
+        map._classMeta.fields = [createField('element', elementClassMeta)];
+    }
+    const keys = Object.keys(values);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        map.set(key, values[key]);
     }
     return map;
 }
 
-export class HashMap<T = {}> implements This {
-    _classMeta = new ClassMeta(neverPossible);
-    _treeMeta = new TreeMeta<T>();
-    constructor(elementClassMeta: ClassMeta) {
-        this._classMeta.fields.push(createField('element', elementClassMeta));
-    }
+@entity
+export class HashMap<T = {}> {
+    _classMeta = new ClassMeta(undefined!);
 
-    _keys = new AtomCalc(this, this._keyCalc);
-    _keyCalc() {
-        const keys = [];
-        for (const key in this._treeMeta.atoms) {
-            const value = this._treeMeta.atoms[key];
+    private map: { [key: string]: AtomValue<T> } = {};
+
+    get _keys() {
+        const keys: string[] = [];
+        const map = this.map;
+        for (const key in map) {
+            const value = map[key];
             if (value !== undefined) keys.push(key);
         }
         return keys;
     }
-    _size = new AtomCalc(this, this._sizeCalc);
-    _sizeCalc() {
-        return this._keys.get().length;
-    }
 
-    _values = new AtomCalc(this, this._valuesCalc);
-    _valuesCalc() {
-        const keys = this._keys.get();
+    get _values() {
+        const keys = this._keys;
         const values = Array(keys.length);
+        const map = this.map;
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
-            values[i] = this._treeMeta.atoms[key].get();
+            values[i] = map[key].get();
         }
         return values;
     }
 
-    _keyValues = new AtomCalc(this, this._keyValuesCalc);
-    _keyValuesCalc() {
-        const keys = this._keys.get();
-        const values = this._values.get();
+    get _keyValues() {
+        const keys = this.keys;
+        const values = this.values;
         const keyValues = Array(keys.length);
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
@@ -76,37 +69,45 @@ export class HashMap<T = {}> implements This {
         return keyValues;
     }
 
-    keys() {
-        return this._keys.get();
-    }
-
-    values() {
-        return this._values.get();
-    }
-
     get size() {
-        return this._size.get();
+        return this.keys.length;
     }
 
+    @skip
+    keys() {
+        return this._keys;
+    }
+
+    @skip
+    values() {
+        return this._values;
+    }
+
+    @skip
     get(key: string | number): T | undefined {
-        const treeMeta = this._treeMeta;
-        const atom = treeMeta.atoms[key];
-        if (atom === undefined) return undefined;
-        return atom.get() as T;
+        const atom = this.map[key];
+        if (atom !== undefined) {
+            return atom.get();
+        }
+        return;
     }
 
+    @skip
     has(key: string | number) {
-        const treeMeta = this._treeMeta;
-        return treeMeta.atoms[key] !== undefined;
+        return this.map[key] !== undefined;
     }
 
     set(key: string | number, value: T) {
-        const treeMeta = this._treeMeta;
-        const atom = treeMeta.atoms[key];
+        checkWeAreInAction();
+        let atom = this.map[key];
+        if (atom == undefined) {
+            atom = new AtomValue(value);
+        }
         const prevValue = atom === undefined ? undefined : (atom.get() as T);
-        value = transformValue(this._classMeta.fields[0], value, prevValue);
+        const classMeta = getClassMetaFromObj(this)!;
+        value = transformValue(classMeta.fields[0], value, prevValue);
         if (atom === undefined) {
-            treeMeta.atoms[key] = new AtomValue(value);
+            this.map[key] = atom = new AtomValue(value);
         } else {
             atom.set(value);
         }
@@ -114,37 +115,52 @@ export class HashMap<T = {}> implements This {
     }
 
     delete(key: string | number) {
-        const treeMeta = this._treeMeta;
-        const atom = treeMeta.atoms[key];
-        if (atom !== undefined) {
-            treeMeta.atoms[key] = undefined!;
-        }
+        checkWeAreInAction();
+        const item = this.get(key);
+        detachObject(item);
+        this.map[key] = undefined!;
         mutate(this);
     }
 
     clear() {
-        this._treeMeta.atoms = {};
-        this._keys.reset();
+        checkWeAreInAction();
+        this.map = {};
         mutate(this);
     }
 
+    @skip
     entries() {
-        return this._keyValues.get()[Symbol.iterator];
+        return this._keyValues[Symbol.iterator];
     }
 
+    @skip
     toJSON() {
-        if (this._treeMeta.json !== undefined) return this._treeMeta.json;
-        const keysValues = this._keyValues.get();
         const json = {};
-        for (let i = 0; i < keysValues.length; i++) {
-            const [key, value] = keysValues[i];
-            json[key] = toJSON(value);
+        const map = this.map;
+        for (const key in map) {
+            json[key] = toJSON(map[key]);
         }
-        this._treeMeta.json = json;
         return json;
     }
 
     [Symbol.iterator]() {
-        return this._keyValues.get()[Symbol.iterator]();
+        return this._keyValues[Symbol.iterator]();
     }
+}
+
+export function hash<T>(Cls: new () => T) {
+    return function<Prop extends string, Trg extends Record<Prop, Map<number | string, T> | undefined>>(
+        targetProto: Trg,
+        prop: Prop
+    ) {
+        const Class = (Cls as {}) as EntityClass;
+        const Target = targetProto.constructor as EntityClass;
+
+        const elementClassMeta = getClassMetaOrThrow(Class);
+        const mapClassMeta = new ClassMeta((json, prev) => factoryMap(elementClassMeta, json, prev as HashMap));
+
+        const classMeta = getOrCreateClassMeta(Target, undefined!);
+        const field = createField(prop, mapClassMeta);
+        classMeta.fields.push(field);
+    };
 }

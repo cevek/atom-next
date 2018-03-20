@@ -5,9 +5,9 @@ import { AtomCalc } from './Atom';
 
 type Omit<A, B> = { [P in Exclude<keyof A, keyof B>]: A[P] };
 let callFromRender = false;
-export function connect<Props, StateProps extends Partial<Props>, HOCProps>(
+export function connect<Store extends RootStore, Props, StateProps extends Partial<Props>, HOCProps>(
     render: React.SFC<Props>,
-    stateToProps?: (store: RootStore, props: HOCProps) => StateProps
+    stateToProps?: (store: Store, props: HOCProps) => StateProps
 ): React.ComponentClass<Omit<Props, StateProps> & HOCProps> {
     return class Connect extends React.PureComponent<Omit<Props, StateProps> & HOCProps> {
         static displayName = render.name ? `Connect(${render.name})` : 'Connect';
@@ -25,7 +25,9 @@ export function connect<Props, StateProps extends Partial<Props>, HOCProps>(
             const newProps = (Object.assign(
                 {},
                 this.props,
-                stateToProps === undefined ? undefined : stateToProps(this.context.store.atomStore, this.props as never)
+                stateToProps === undefined
+                    ? undefined
+                    : stateToProps(this.context.store.atomStore as Store, this.props as never)
             ) as {}) as Props;
             return render(newProps);
         }

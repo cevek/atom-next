@@ -1,8 +1,8 @@
 import { glob } from './Glob';
 
-export function toJSON(obj: { toJSON?: () => {} | undefined } | undefined): {} | undefined {
+export function toJSON(obj: {}): {} | undefined {
     if (obj === null || typeof obj !== 'object') return obj;
-    return typeof obj.toJSON === 'function' ? obj.toJSON() : obj;
+    return typeof obj['toJSON'] === 'function' ? obj['toJSON']() : obj;
 }
 
 export function checkWeAreInAction() {

@@ -1,5 +1,5 @@
 import { createField, Field } from './Field';
-import { EntityClass } from './Entity';
+import { EntityClass, This } from './Entity';
 
 export interface Reducer {
     name: string;
@@ -33,18 +33,28 @@ export function getOrCreateClassMeta(
 }
 
 export function getClassMetaOrThrow(Class: EntityClass) {
-    let classMeta = Class.prototype._classMeta;
+    const classMeta = Class.prototype._classMeta;
     if (classMeta === undefined) {
         throw new Error(`Class ${Class.name} is not registered`);
     }
     return classMeta;
 }
 
-export function transformValue<T>(field: Field, value: T, prevValue: T | undefined): T {
-    const valueClassMeta = field.classMeta;
-    if (valueClassMeta !== undefined) {
+export function getClassMetaFromObj(obj: {} | undefined) {
+    if (obj instanceof Object) {
+        return (obj as This)._classMeta;
+    }
+}
+
+export function transformValue<T>(valueField: Field, value: T, prevValue: T | undefined): T {
+    // if (valueField.classMeta === undefined) {
+    //     if (value instanceof Object) {
+    //         valueField.classMeta = ((value as {}) as This)._classMeta;
+    //     }
+    // }
+    if (valueField.classMeta !== undefined) {
         if (value === undefined || value === null) return value;
-        return valueClassMeta.factory(value, prevValue) as T;
+        return valueField.classMeta.factory(value, prevValue) as T;
     }
     return value;
 }

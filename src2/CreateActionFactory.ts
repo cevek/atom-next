@@ -5,8 +5,8 @@ import { diff } from './Diff';
 import { This } from './Entity';
 import { run } from './Atom';
 
-export function createActionFactory(type: string, reducer: Function) {
-    return function(this: This, payload: {}) {
+export function createActionFactory<Fun extends Function>(type: string, reducer: Fun): Fun {
+    return (function(this: This, payload: {}) {
         if (glob.inTransaction) {
             reducer.call(this, payload);
         } else {
@@ -26,5 +26,5 @@ export function createActionFactory(type: string, reducer: Function) {
                 run();
             }
         }
-    };
+    } as {}) as Fun;
 }
