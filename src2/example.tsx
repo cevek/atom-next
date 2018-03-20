@@ -3,8 +3,10 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { Provider } from 'react-redux';
 import { applyMiddleware, compose, createStore } from 'redux';
-import { array, entity, hash, sub } from './Decorators';
+import { entity, sub } from './Decorators';
 import { connect } from './Component';
+import { array } from './Array';
+import { hash } from './HashMap';
 
 const w: any = window;
 class Async<T> {
@@ -36,39 +38,15 @@ class TodoList1 {
 
 // users[0].id;
 
-function run() {
-    const atomStore = new RootStore([TodoStore]);
-    w.atomStore = atomStore;
-    const composeEnhancers = w.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
-    const store = createStore(
-        atomStore.reducer,
-        /*state,*/
-        composeEnhancers(applyMiddleware())
-    );
-    atomStore.setReduxStore(store);
-    w.rootStore = atomStore;
-    // console.log(store);
-    ReactDOM.render(
-        <Provider store={store}>
-            <TodoListHOC />
-        </Provider>,
-        document.getElementById('root') as HTMLElement
-    );
-
-    // autorun(() => {
-    //     const todoStore = atomStore.getInstance(TodoStore);
-    //     w.todoStore = todoStore;
-    //     console.log(todoStore.todos.map(todo => `${todo.title} [${todo.done ? '+' : '*'}]`));
-    //     console.log(todoStore);
-    // });
-}
-
 @entity
 class Todo {
     title = 'new todo';
     isDone = false;
     done(isDone: boolean) {
         this.isDone = isDone;
+    }
+    constructor() {
+        console.log('new Todo');
     }
 }
 
@@ -99,6 +77,40 @@ class TodoStore {
     get unfinishedCount() {
         return this.todos.reduce((sum, todo) => sum + (todo.isDone ? 0 : 1), 0);
     }
+
+    constructor() {
+        console.log('new TodoStore');
+    }
+}
+
+@entity
+class MyStore extends RootStore {
+    @sub(TodoStore) todoStore = new TodoStore();
+}
+
+function run() {
+    const composeEnhancers = w.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
+    const reduxStore = createStore(
+        state => state,
+        /*state,*/
+        composeEnhancers(applyMiddleware())
+    );
+    const store = new MyStore({ reduxStore });
+    w.rootStore = store;
+    // console.log(store);
+    ReactDOM.render(
+        <Provider store={reduxStore}>
+            <TodoListHOC />
+        </Provider>,
+        document.getElementById('root') as HTMLElement
+    );
+
+    // autorun(() => {
+    //     const todoStore = atomStore.getInstance(TodoStore);
+    //     w.todoStore = todoStore;
+    //     console.log(todoStore.todos.map(todo => `${todo.title} [${todo.done ? '+' : '*'}]`));
+    //     console.log(todoStore);
+    // });
 }
 
 function TodoList(props: Pick<TodoStore, 'todos' | 'unfinishedCount'>) {
@@ -109,8 +121,8 @@ function TodoList(props: Pick<TodoStore, 'todos' | 'unfinishedCount'>) {
         </div>
     );
 }
-const TodoListHOC = connect(TodoList, store => {
-    const { todos, unfinishedCount } = store.getInstance(TodoStore);
+const TodoListHOC = connect(TodoList, (store: MyStore) => {
+    const { todos, unfinishedCount } = store.todoStore;
     return { todos, unfinishedCount };
 });
 
