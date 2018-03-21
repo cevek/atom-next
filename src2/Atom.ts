@@ -1,3 +1,5 @@
+import { toJSON } from './Utils';
+
 export const enum AtomState {
     ACTUAL = 'ACTUAL',
     MAYBE_DIRTY = 'MAYBE_DIRTY',
@@ -14,6 +16,7 @@ class TransactionManager {
     current = new Transaction(this.transactionIdIdx++, undefined);
     private stack: Transaction[] = [this.current];
     private pos = 0;
+    digestRunning = false;
     start(atom: AtomCalc) {
         if (this.pos === this.stack.length - 1) {
             this.stack.push(new Transaction(this.transactionIdIdx++, atom));
@@ -55,12 +58,15 @@ const trxManager = new TransactionManager();
 const updateList = { list: [] as AtomValue[], pos: 0 };
 
 export function run() {
+    if (trxManager.current.atom !== undefined || trxManager.digestRunning) return;
+    trxManager.digestRunning = true;
     for (let i = 0; i < updateList.pos; i++) {
         const atom = updateList.list[i];
         actualize(atom);
         updateList.list[i] = undefined!;
     }
     updateList.pos = 0;
+    trxManager.digestRunning = false;
 }
 function actualize(atom: Atom) {
     // console.log('actualize', atom.name, atom.value);
@@ -200,7 +206,8 @@ function detachCalc(atom: AtomCalc) {
     for (let i = 0; i < atom.masters.length; i += 2) {
         const master = atom.masters[i] as Atom;
         if (master.slaves!.length === 1) {
-            if (master.state !== AtomState.ACTUAL) {
+            if (master instanceof AtomCalc) {
+                master.slaves = undefined;
                 detachCalc(master);
             }
         } else {
@@ -211,7 +218,7 @@ function detachCalc(atom: AtomCalc) {
 }
 
 export function autorun<T>(calcFun: () => T) {
-    const atom = new AtomCalc<T>(undefined, calcFun);
+    const atom = new AtomCalc<T>(undefined, calcFun, 'autorun');
     atom.get();
     return atom;
 }
@@ -233,7 +240,6 @@ function setValue(atom: AtomValue, value: {}) {
 export type Atom<T = {}> = AtomCalc<T> | AtomValue<T>;
 
 export class AtomCalc<T = {}> {
-    name?: string;
     slaves?: AtomCalc[] = void 0;
     masters: (Atom | {})[] = undefined!;
     owner: {} | undefined;
@@ -241,7 +247,7 @@ export class AtomCalc<T = {}> {
     value: T = undefined!;
     state = AtomState.MAYBE_DIRTY;
 
-    constructor(owner: {} | undefined, calcFun: () => T) {
+    constructor(owner: {} | undefined, calcFun: () => T, public name: string) {
         this.owner = owner;
         this.calcFun = calcFun;
     }
@@ -260,18 +266,17 @@ export class AtomCalc<T = {}> {
     }
 
     toJSON() {
-        return this.value;
+        return toJSON(this.value);
     }
 }
 
 export class AtomValue<T = {}> {
-    name?: string;
     slaves?: AtomCalc[] = void 0;
     value: T;
     // createdInTransaction = trxManager.current.transactionId;
     state!: AtomState.ACTUAL;
 
-    constructor(value: T) {
+    constructor(value: T, public name: string) {
         this.value = value;
     }
 
@@ -289,7 +294,7 @@ export class AtomValue<T = {}> {
     }
 
     toJSON() {
-        return this.value;
+        return toJSON(this.value);
     }
 }
 AtomValue.prototype.state = AtomState.ACTUAL;

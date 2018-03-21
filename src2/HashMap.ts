@@ -1,38 +1,37 @@
-import { clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
+import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
 import { AtomValue } from './Atom';
-import { ClassMeta, getClassMetaFromObj, getClassMetaOrThrow, getOrCreateClassMeta, transformValue } from './ClassMeta';
+import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
-import { entity, skip } from './Decorators';
-import { EntityClass } from './Entity';
+import { addField, buildElementClassMeta, entity, skip } from './Decorators';
 import { createField } from './Field';
 
-function mutate<Ret>(arr: HashMap) {
-    clearParentsJson(getObjTreeMeta(arr)!);
-}
-
-export function factoryMap<T>(
-    elementClassMeta: ClassMeta | undefined,
-    values: { [key: string]: T },
-    map: HashMap<T> | undefined
-) {
-    if (values instanceof HashMap) return values;
-    if (map !== undefined) {
-        map.clear();
-    } else {
-        map = new HashMap<T>();
-        map._classMeta.fields = [createField('element', elementClassMeta)];
-    }
-    const keys = Object.keys(values);
-    for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        map.set(key, values[key]);
-    }
-    return map;
+function mutate(map: HashMap) {
+    clearParentsJson(getObjTreeMeta(map)!);
 }
 
 @entity
-export class HashMap<T = {}> {
-    _classMeta = new ClassMeta(undefined!);
+export class HashMap<T = {}> implements Map<string | number, T> {
+    @skip _classMeta = new ClassMeta(undefined!);
+
+    static factory<T>(
+        elementClassMeta: ClassMeta | undefined,
+        values: { [key: string]: T },
+        map: HashMap<T> | undefined
+    ) {
+        if (values instanceof HashMap) return values;
+        if (map !== undefined) {
+            map.clear();
+        } else {
+            map = new HashMap<T>();
+            map._classMeta.fields = [createField('element', elementClassMeta)];
+        }
+        const keys = Object.keys(values);
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            map.set(key, values[key]);
+        }
+        return map;
+    }
 
     private map: { [key: string]: AtomValue<T> } = {};
 
@@ -75,12 +74,12 @@ export class HashMap<T = {}> {
 
     @skip
     keys() {
-        return this._keys;
+        return this._keys[Symbol.iterator]();
     }
 
     @skip
     values() {
-        return this._values;
+        return this._values[Symbol.iterator]();
     }
 
     @skip
@@ -97,31 +96,37 @@ export class HashMap<T = {}> {
         return this.map[key] !== undefined;
     }
 
+    @skip
     set(key: string | number, value: T) {
         checkWeAreInAction();
-        let atom = this.map[key];
-        if (atom == undefined) {
-            atom = new AtomValue(value);
-        }
-        const prevValue = atom === undefined ? undefined : (atom.get() as T);
         const classMeta = getClassMetaFromObj(this)!;
+        let atom = this.map[key];
+        const prevValue = atom === undefined ? undefined : (atom.value as T);
         value = transformValue(classMeta.fields[0], value, prevValue);
-        if (atom === undefined) {
-            this.map[key] = atom = new AtomValue(value);
+        if (atom == undefined) {
+            this.map[key] = atom = new AtomValue(value, 'HashMap.map.' + key);
         } else {
             atom.set(value);
         }
+        attachObject(this, value, prevValue);
         mutate(this);
+        return this;
     }
 
+    @skip
     delete(key: string | number) {
         checkWeAreInAction();
         const item = this.get(key);
-        detachObject(item);
-        this.map[key] = undefined!;
-        mutate(this);
+        if (item !== undefined) {
+            detachObject(item);
+            this.map[key] = undefined!;
+            mutate(this);
+            return true;
+        }
+        return false;
     }
 
+    @skip
     clear() {
         checkWeAreInAction();
         this.map = {};
@@ -129,8 +134,8 @@ export class HashMap<T = {}> {
     }
 
     @skip
-    entries() {
-        return this._keyValues[Symbol.iterator];
+    entries(): IterableIterator<[string | number, T]> {
+        return this._keyValues[Symbol.iterator]();
     }
 
     @skip
@@ -143,24 +148,30 @@ export class HashMap<T = {}> {
         return json;
     }
 
+    forEach(callbackfn: (value: T, key: string | number, map: Map<string | number, T>) => void, thisArg?: any) {
+        const keyValues = this._keyValues;
+        for (let i = 0; i < keyValues.length; i++) {
+            const [key, value] = keyValues[i];
+            callbackfn.call(thisArg, value, key, this);
+        }
+    }
+
+    [Symbol.toStringTag]: 'Map' = 'Map';
     [Symbol.iterator]() {
         return this._keyValues[Symbol.iterator]();
     }
 }
 
-export function hash<T>(Cls: new () => T) {
+export function hash<T>(Cls: (new () => T) | ClassMeta | undefined) {
     return function<Prop extends string, Trg extends Record<Prop, Map<number | string, T> | undefined>>(
         targetProto: Trg,
         prop: Prop
     ) {
-        const Class = (Cls as {}) as EntityClass;
-        const Target = targetProto.constructor as EntityClass;
-
-        const elementClassMeta = getClassMetaOrThrow(Class);
-        const mapClassMeta = new ClassMeta((json, prev) => factoryMap(elementClassMeta, json, prev as HashMap));
-
-        const classMeta = getOrCreateClassMeta(Target, undefined!);
-        const field = createField(prop, mapClassMeta);
-        classMeta.fields.push(field);
+        addField(targetProto, prop, hashType(Cls));
     };
+}
+
+export function hashType<T>(Class?: (new () => T) | ClassMeta) {
+    const elementClassMeta = buildElementClassMeta(Class);
+    return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap));
 }

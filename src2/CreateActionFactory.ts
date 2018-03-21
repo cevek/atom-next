@@ -6,18 +6,18 @@ import { This } from './Entity';
 import { run } from './Atom';
 
 export function createActionFactory<Fun extends Function>(type: string, reducer: Fun): Fun {
-    return (function(this: This, payload: {}) {
+    return (function(this: This, ...args: any[]) {
         if (glob.inTransaction) {
-            reducer.call(this, payload);
+            return reducer.call(this, ...args);
         } else {
             const prevInTransaction = glob.inTransaction;
             glob.inTransaction = true;
             try {
                 const rootStore = getRootStore(this._treeMeta);
                 if (rootStore !== undefined) {
-                    const oldState = toJSON(rootStore);
-                    reducer.call(this, payload);
-                    rootStore.dispatch(type, this, diff(oldState, toJSON(rootStore)!));
+                    const res = reducer.call(this, ...args);
+                    rootStore.dispatch(type, this, {});
+                    return res;
                 } else {
                     throw new Error('This object is not in the store tree');
                 }

@@ -9,4 +9,5 @@ export interface This<T = {}> {
 export interface EntityClass<T = {}> {
     new (): This<T>;
     prototype: This<T>;
+//    factory(elementClassMeta: ClassMeta, value: This<T>, prev: This<T> | undefined): This<T>;
 }

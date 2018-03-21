@@ -38,8 +38,10 @@ class TodoList1 {
 
 // users[0].id;
 
+let id = 0;
 @entity
 class Todo {
+    id = ++id;
     title = 'new todo';
     isDone = false;
     done(isDone: boolean) {
@@ -113,6 +115,14 @@ function run() {
     // });
 }
 
+@entity
+class TodoItemStore {
+    visible = false;
+    setVisible(visible: boolean) {
+        this.visible = visible;
+    }
+}
+
 function TodoList(props: Pick<TodoStore, 'todos' | 'unfinishedCount'>) {
     return (
         <div>
@@ -126,8 +136,12 @@ const TodoListHOC = connect(TodoList, (store: MyStore) => {
     return { todos, unfinishedCount };
 });
 
-const TodoItemHOC = connect(TodoItem);
-function TodoItem(props: { todo: Todo }) {
+const TodoItemHOC = connect(TodoItem, (store: MyStore, props: { todo: Todo }) => {
+    const local = store.getInstance(TodoItemStore, props.todo.id);
+    return { local };
+});
+function TodoItem(props: { todo: Todo; local: TodoItemStore }) {
+    // console.log(props.local);
     return (
         <div>
             <label style={{ textDecoration: props.todo.isDone ? 'line-through' : undefined }}>
@@ -138,6 +152,8 @@ function TodoItem(props: { todo: Todo }) {
                 />{' '}
                 {props.todo.title}
             </label>
+            <input onChange={() => props.local.setVisible(!props.local.visible)} type="checkbox" />{' '}
+            {props.local.visible ? 'Yes' : 'No'}
         </div>
     );
 }

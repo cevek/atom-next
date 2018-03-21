@@ -15,7 +15,7 @@ export function connect<Store extends RootStore, Props, StateProps extends Parti
         context!: { store: CustomStore };
         update = () => this.forceUpdate();
         timeout = -1;
-        atom = new AtomCalc(this, this.atomRender);
+        atom = new AtomCalc(this, this.atomRender, 'Component:' + render.name);
         atomRender() {
             if (!callFromRender) {
                 clearTimeout(this.timeout);

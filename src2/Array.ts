@@ -1,33 +1,14 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
-import { ClassMeta, getClassMetaFromObj, getClassMetaOrThrow, getOrCreateClassMeta, transformValue } from './ClassMeta';
-import { entity, skip } from './Decorators';
+import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
+import { addField, buildElementClassMeta, entity, skip } from './Decorators';
 import { createField } from './Field';
-import { EntityClass } from './Entity';
 
 function mutate<Ret>(arr: ArrayProxy) {
     arr._version++;
     clearParentsJson(getObjTreeMeta(arr)!);
 }
 
-export function arrayFactory(
-    elementClassMeta: ClassMeta | undefined,
-    json: ArrayProxy | {}[],
-    array: ArrayProxy | undefined
-) {
-    if (json instanceof ArrayProxy) return json;
-    if (array === undefined) {
-        array = new ArrayProxy();
-        array._classMeta.fields = [createField('element', elementClassMeta)];
-    }
-    for (let i = array._values.length - 1; i >= json.length; i--) {
-        array.pop();
-    }
-    for (let i = 0; i < json.length; i++) {
-        array.set(i, json[i]);
-    }
-    return array;
-}
 
 function transformAndAttach(arr: ArrayProxy, items: {}[]) {
     for (let i = 0; i < items.length; i++) {
@@ -40,7 +21,24 @@ function transformAndAttach(arr: ArrayProxy, items: {}[]) {
 @entity
 export class ArrayProxy<T = {}> {
     _version = 0;
-    _classMeta = new ClassMeta(undefined!);
+
+    static factory(elementClassMeta: ClassMeta | undefined, json: ArrayProxy | {}[], array: ArrayProxy | undefined) {
+        if (json instanceof ArrayProxy) return json;
+        if (array === undefined) {
+            array = new ArrayProxy();
+            array._classMeta.fields = [createField('element', elementClassMeta)];
+        }
+        for (let i = array._values.length - 1; i >= json.length; i--) {
+            array.pop();
+        }
+        for (let i = 0; i < json.length; i++) {
+            array.set(i, json[i]);
+        }
+        return array;
+    }
+
+    @skip _classMeta = new ClassMeta(undefined!);
+
     @skip _values: T[] = [];
 
     get length() {
@@ -164,16 +162,13 @@ for (let i = 0; i < immutableMethods.length; i++) {
     };
 }
 
-export function array<T>(Cls: new () => T) {
+export function array<T>(Cls: (new () => T) | ClassMeta) {
     return function<Prop extends string, Trg extends Record<Prop, T[] | undefined>>(targetProto: Trg, prop: Prop) {
-        const Class = (Cls as {}) as EntityClass;
-        const Target = targetProto.constructor as EntityClass;
-        const elementClassMeta = getClassMetaOrThrow(Class);
-        const arrayClassMeta = new ClassMeta((json, prevValue) =>
-            arrayFactory(elementClassMeta, json as {}[], prevValue as ArrayProxy)
-        );
-        const classMeta = getOrCreateClassMeta(Target, undefined!);
-        const field = createField(prop, arrayClassMeta);
-        classMeta.fields.push(field);
+        addField(targetProto, prop, arrayType(Cls));
     };
+}
+
+export function arrayType<T>(Class?: (new () => T) | ClassMeta) {
+    const elementClassMeta = buildElementClassMeta(Class);
+    return new ClassMeta((json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy));
 }

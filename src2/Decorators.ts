@@ -29,10 +29,10 @@ function setPropsGetters(Target: Function, classMeta: ClassMeta, props: string[]
                     treeMeta = this._treeMeta = new TreeMeta();
                 }
                 let atom = treeMeta.atoms[prop] as AtomValue | undefined;
-                const prevValue = atom === undefined ? undefined : atom.get();
+                const prevValue = atom === undefined ? undefined : atom.value;
                 value = transformValue(field, value, prevValue);
                 if (typeof atom === 'undefined') {
-                    treeMeta.atoms[prop] = atom = new AtomValue(value);
+                    treeMeta.atoms[prop] = atom = new AtomValue(value, Target.name + '.' + prop);
                 } else {
                     checkWeAreInAction();
                 }
@@ -57,7 +57,7 @@ function setMethods(Target: Function, classMeta: ClassMeta, prototype: ReflectCl
                     let treeMeta = this._treeMeta;
                     let atom = (treeMeta.atoms[prop] as Atom) as AtomCalc;
                     if (typeof atom === 'undefined') {
-                        treeMeta.atoms[prop] = atom = new AtomCalc(this, method);
+                        treeMeta.atoms[prop] = atom = new AtomCalc(this, method, Target.name + '.' + prop + '()');
                     }
                     return atom.get();
                 },
@@ -103,21 +103,15 @@ export function entity<Class extends new () => {}>(target: Class): Class {
 
 export function sub<T>(Cls: new () => T) {
     return function<Prop extends string, Trg extends Record<Prop, T | undefined>>(targetProto: Trg, prop: Prop) {
-        const Class = (Cls as {}) as EntityClass;
-        const Target = targetProto.constructor as EntityClass;
-
-        const subClassMeta = getClassMetaOrThrow(Class);
-        const classMeta = getOrCreateClassMeta(Target, undefined!);
-        const field = createField(prop, subClassMeta);
-        classMeta.fields.push(field);
+        addField(targetProto, prop, getClassMetaOrThrow((Cls as {}) as EntityClass));
     };
 }
 export function key<Prop extends string, Host extends Record<Prop, (key: number) => {} | undefined>>(
-    targetProto: Host,
+    target: Host,
     prop: Prop
 ): any;
 export function key<Prop extends string, Host extends Record<Prop, (key: string) => {} | undefined>>(
-    targetProto: Host,
+    target: Host,
     prop: Prop
 ): any;
 export function key(targetProto: {}, prop: string) {
@@ -165,4 +159,16 @@ export function factoryEntity(Target: EntityClass, json: {}, prev: {} | undefine
     } finally {
         glob.inTransaction = prevInTransaction;
     }
+}
+
+export function buildElementClassMeta(Cls: (new () => {}) | ClassMeta | undefined) {
+    return Cls instanceof ClassMeta
+        ? Cls
+        : Cls === undefined ? undefined : getClassMetaOrThrow((Cls as {}) as EntityClass);
+}
+export function addField<T>(targetProto: {}, prop: string, propClassMeta: ClassMeta) {
+    const Target = targetProto.constructor as EntityClass;
+    const hostClassMeta = getOrCreateClassMeta(Target, undefined!);
+    const field = createField(prop, propClassMeta);
+    hostClassMeta.fields.push(field);
 }

@@ -8,7 +8,11 @@ export class KeyedAtomCalc<T = {} | undefined> {
         if (key === undefined) return undefined;
         let atom = this.cache[key];
         if (atom === undefined) {
-            this.cache[key] = atom = new AtomCalc<T>(this.thisArg, this.calcFun.bind(this.thisArg, key));
+            this.cache[key] = atom = new AtomCalc<T>(
+                this.thisArg,
+                this.calcFun.bind(this.thisArg, key),
+                'KeyedAtom.' + key
+            );
         }
         return atom.get();
     }
