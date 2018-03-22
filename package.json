@@ -28,6 +28,7 @@
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
     "react-redux": "^5.0.7",
+    "remotedev": "^0.2.7",
     "ts-loader": "^4.0.1",
     "webpack": "^4.1.1"
   }

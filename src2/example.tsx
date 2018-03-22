@@ -1,12 +1,14 @@
 import { RootStore } from './RootStore';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { Provider } from 'react-redux';
-import { applyMiddleware, compose, createStore } from 'redux';
 import { entity, sub } from './Decorators';
 import { connect } from './Component';
 import { array } from './Array';
 import { hash } from './HashMap';
+import { Provider } from './Provider';
+
+const { connectViaExtension, extractState } = require('remotedev');
+const remotedev = connectViaExtension();
 
 const w: any = window;
 class Async<T> {
@@ -91,17 +93,17 @@ class MyStore extends RootStore {
 }
 
 function run() {
-    const composeEnhancers = w.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
-    const reduxStore = createStore(
-        state => state,
-        /*state,*/
-        composeEnhancers(applyMiddleware())
-    );
-    const store = new MyStore({ reduxStore });
+    const store = new MyStore({});
+    remotedev.subscribe((message: any) => {
+        const state = extractState(message);
+        store.setState(state);
+    });
+    store.subscribe((action, state) => {
+        remotedev.send(action, state);
+    });
     w.rootStore = store;
-    // console.log(store);
     ReactDOM.render(
-        <Provider store={reduxStore}>
+        <Provider treeStore={store}>
             <TodoListHOC />
         </Provider>,
         document.getElementById('root') as HTMLElement
@@ -152,7 +154,11 @@ function TodoItem(props: { todo: Todo; local: TodoItemStore }) {
                 />{' '}
                 {props.todo.title}
             </label>
-            <input onChange={() => props.local.setVisible(!props.local.visible)} type="checkbox" />{' '}
+            <input
+                checked={props.local.visible}
+                onChange={() => props.local.setVisible(!props.local.visible)}
+                type="checkbox"
+            />{' '}
             {props.local.visible ? 'Yes' : 'No'}
         </div>
     );
