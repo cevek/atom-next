@@ -1,12 +1,11 @@
 import { toJSON } from './Utils';
-import { ClassMeta, getClassMetaOrThrow, transformValue } from './ClassMeta';
+import { ClassMeta, getClassMetaOrThrow } from './ClassMeta';
 import { EntityClass, This } from './Entity';
 import { glob } from './Glob';
 import { run } from './Atom';
 import { hash, HashMap, hashType } from './HashMap';
 import { entity, factoryEntity, skip } from './Decorators';
-import { TreeMeta } from './TreeMeta';
-import { createField } from './Field';
+import { attachObject, detachObject, TreeMeta } from './TreeMeta';
 
 export type ReduxStore<T> = {
     getState(): T;
@@ -24,15 +23,45 @@ export interface Action {
     payload?: {};
 }
 
-@entity
-class Dummy {}
-
 interface RootStoreOptions {
     reduxStore?: ReduxStore<{}>;
     idKey?: string;
 }
+
+class LocalRootStore {
+    createId() {
+        return this.rootStore.createId();
+    }
+    constructor(public rootStore: RootStore) {
+        this._treeMeta.parent = (this as {}) as TreeMeta;
+    }
+    _treeMeta = new TreeMeta();
+    instanceMap = new Map<string, Map<string | number, {}>>();
+    dispatch(type: string, thisArg: This, payload: {}) {
+        detachObject(thisArg);
+        this.rootStore.createInstance(thisArg);
+        return this.rootStore.dispatch(type, thisArg, payload);
+    }
+    getInstance<T>(Class: new () => T, id: number | string = 'default'): T {
+        const key = Class.name;
+        let classMap = this.instanceMap.get(key);
+        if (classMap === undefined) {
+            classMap = new Map();
+            this.instanceMap.set(key, classMap);
+        }
+        let instance = classMap.get(id);
+        if (instance === undefined) {
+            instance = new Class();
+            (instance as This)._treeMeta._id = id;
+            classMap.set(id, instance);
+            attachObject(this, instance, undefined);
+        }
+        return instance as T;
+    }
+}
 @entity
 export class RootStore {
+    @skip
     createId() {
         return ++this.lastId;
     }
@@ -40,6 +69,8 @@ export class RootStore {
     @skip lastId = 0;
     @hash(hashType())
     instanceMap = new Map<string, Map<string | number, {}>>();
+
+    @skip _tempComponentStore = new LocalRootStore(this);
 
     @skip _reduxStore: CustomStore = undefined!;
     @skip options: RootStoreOptions;
@@ -72,49 +103,27 @@ export class RootStore {
     @skip
     getInstance<T>(Class: new () => T, id: number | string = 'default'): T {
         const EntClass = (Class as {}) as EntityClass;
-        const classMeta = getClassMetaOrThrow(EntClass);
-        registerClass(this, classMeta);
+        getClassMetaOrThrow(EntClass);
+        const key = Class.name;
+        const classMap = this.instanceMap.get(key);
+        let instance = classMap === undefined ? undefined : (classMap.get(id) as T);
+        if (instance !== undefined) {
+            return instance;
+        }
+        return this._tempComponentStore.getInstance(Class, id);
+    }
+
+    @skip
+    createInstance<T>(instance: This) {
+        const Class = instance.constructor as EntityClass;
         const key = Class.name;
         let classMap = this.instanceMap.get(key);
         if (classMap === undefined) {
-            classMap = HashMap.factory(
-                new ClassMeta((json, prev) => factoryEntity(EntClass, json, prev)),
-                {},
-                undefined
-            );
+            const elementClassMeta = Class.prototype._classMeta;
+            classMap = HashMap.factory(elementClassMeta, {}, undefined);
+            this.instanceMap.set(key, classMap);
         }
-        let instance = classMap.get(id);
-        if (instance === undefined) {
-            instance = this.createInstance(EntClass, key, classMap, id, instance);
-        } else if (instance instanceof Object && instance.constructor === Object) {
-            instance = transformValue(
-                createField(id, new ClassMeta((json, prev) => factoryEntity(EntClass, json, prev))),
-                instance,
-                undefined
-            );
-            const prevInTransaction = glob.inTransaction;
-            glob.inTransaction = true;
-            classMap.set(id, instance);
-            glob.inTransaction = prevInTransaction;
-        }
-        return instance as T;
-    }
-
-    createInstance<T>(
-        Class: EntityClass,
-        key: string,
-        classMap: Map<string | number, {}>,
-        id: string | number,
-        json: {} | undefined
-    ) {
-        this.instanceMap.set(key, classMap);
-        const instance = transformValue(
-            createField(id, new ClassMeta((json, prev) => factoryEntity(Class, json, prev))),
-            json === undefined ? new Class() : json,
-            undefined
-        );
-        classMap.set(id, instance);
-        return instance;
+        classMap.set(instance._treeMeta._id!, instance);
     }
 
     // @skip

@@ -3,6 +3,7 @@ import { RootStore } from './RootStore';
 
 export class TreeMeta<T = {}> {
     id: string | number | undefined = undefined;
+    _id: string | number | undefined = undefined;
     parent: TreeMeta | undefined = undefined;
     json: {} | undefined = undefined;
     atoms: { [key: string]: {} } = {};
@@ -18,7 +19,7 @@ export function clearParentsJson(treeMeta: TreeMeta) {
 export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     let t: TreeMeta | undefined = treeMeta;
     while (t !== undefined) {
-        if (t instanceof RootStore) {
+        if (!(t instanceof TreeMeta)) {
             return t;
         }
         t = t.parent;
