@@ -25,15 +25,17 @@ export function getOrCreateClassMeta(
     Class: EntityClass,
     factory: (json: {} | undefined, prevValue: {} | undefined) => {}
 ) {
-    let classMeta = Class.prototype._classMeta;
+    const proto = Class.prototype as This;
+    let classMeta = proto._classMeta;
     if (classMeta === undefined) {
-        classMeta = Class.prototype._classMeta = new ClassMeta(factory);
+        classMeta = proto._classMeta = new ClassMeta(factory);
     }
     return classMeta;
 }
 
 export function getClassMetaOrThrow(Class: EntityClass) {
-    const classMeta = Class.prototype._classMeta;
+    const proto = Class.prototype as This;
+    const classMeta = proto._classMeta;
     if (classMeta === undefined) {
         throw new Error(`Class ${Class.name} is not registered`);
     }
@@ -52,8 +54,8 @@ export function transformValue<T>(valueField: Field, value: T, prevValue: T | un
     //         valueField.classMeta = ((value as {}) as This)._classMeta;
     //     }
     // }
+    if (value === null || typeof value !== 'object') return value;
     if (valueField.classMeta !== undefined) {
-        if (value === undefined || value === null) return value;
         return valueField.classMeta.factory(value, prevValue) as T;
     }
     return value;

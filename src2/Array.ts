@@ -3,12 +3,12 @@ import { checkWeAreInAction, toJSON } from './Utils';
 import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
 import { addField, buildElementClassMeta, entity, skip } from './Decorators';
 import { createField } from './Field';
+import { EntityClass } from './Entity';
 
 function mutate<Ret>(arr: ArrayProxy) {
     arr._version++;
     clearParentsJson(getObjTreeMeta(arr)!);
 }
-
 
 function transformAndAttach(arr: ArrayProxy, items: {}[]) {
     for (let i = 0; i < items.length; i++) {
@@ -162,13 +162,13 @@ for (let i = 0; i < immutableMethods.length; i++) {
     };
 }
 
-export function array<T>(Cls: (new () => T) | ClassMeta) {
+export function array<T>(Cls: EntityClass | ClassMeta) {
     return function<Prop extends string, Trg extends Record<Prop, T[] | undefined>>(targetProto: Trg, prop: Prop) {
         addField(targetProto, prop, arrayType(Cls));
     };
 }
 
-export function arrayType<T>(Class?: (new () => T) | ClassMeta) {
+export function arrayType<T>(Class?: EntityClass<T> | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta((json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy));
 }

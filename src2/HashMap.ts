@@ -4,6 +4,7 @@ import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
 import { addField, buildElementClassMeta, entity, skip } from './Decorators';
 import { createField } from './Field';
+import { EntityClass } from './Entity';
 
 function mutate(map: HashMap) {
     clearParentsJson(getObjTreeMeta(map)!);
@@ -162,7 +163,7 @@ export class HashMap<T = {}> implements Map<string | number, T> {
     }
 }
 
-export function hash<T>(Cls: (new () => T) | ClassMeta | undefined) {
+export function hash<T>(Cls: EntityClass<T> | ClassMeta | undefined) {
     return function<Prop extends string, Trg extends Record<Prop, Map<number | string, T> | undefined>>(
         targetProto: Trg,
         prop: Prop
@@ -171,7 +172,7 @@ export function hash<T>(Cls: (new () => T) | ClassMeta | undefined) {
     };
 }
 
-export function hashType<T>(Class?: (new () => T) | ClassMeta) {
+export function hashType<T>(Class?: EntityClass<T> | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap));
 }

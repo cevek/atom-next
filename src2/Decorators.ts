@@ -90,20 +90,19 @@ export function entityToJSON(this: This) {
     return json;
 }
 
-export function entity<Class extends new () => {}>(target: Class): Class {
-    const Target = (target as {}) as EntityClass;
+export function entity<Class extends EntityClass>(Target: Class): Class {
     const { prototype, props } = reflectClass(Target);
     const classMeta = getOrCreateClassMeta(Target, undefined!);
     classMeta.factory = (json, prev) => factoryEntity(Target, json, prev as This);
-    Target.prototype._classMeta = classMeta;
+    (Target.prototype as This)._classMeta = classMeta;
     setPropsGetters(Target, classMeta, props);
     setMethods(Target, classMeta, prototype);
-    return target;
+    return Target;
 }
 
-export function sub<T>(Cls: new () => T) {
+export function sub<T>(Class: EntityClass<T>) {
     return function<Prop extends string, Trg extends Record<Prop, T | undefined>>(targetProto: Trg, prop: Prop) {
-        addField(targetProto, prop, getClassMetaOrThrow((Cls as {}) as EntityClass));
+        addField(targetProto, prop, getClassMetaOrThrow(Class));
     };
 }
 export function key<Prop extends string, Host extends Record<Prop, (key: number) => {} | undefined>>(
@@ -139,7 +138,7 @@ export function skip<T>(targetProto: {}, prop: string) {
     classMeta.fields.push(field);
 }
 
-export function factoryEntity(Target: EntityClass, json: {}, prev: {} | undefined) {
+export function factoryEntity(Target: EntityClass, json: {} | undefined, prev: {} | undefined) {
     const prevInTransaction = glob.inTransaction;
     if (json instanceof Target) return json;
     try {
@@ -148,11 +147,13 @@ export function factoryEntity(Target: EntityClass, json: {}, prev: {} | undefine
             prev = new Target();
         }
         // const treeMeta = prev._treeMeta;
-        const classMeta = (prev as This)._classMeta;
-        for (let i = 0; i < classMeta.fields.length; i++) {
-            const field = classMeta.fields[i];
-            if (field.skipped) continue;
-            prev[field.name] = json[field.name];
+        if (json !== undefined) {
+            const classMeta = (prev as This)._classMeta;
+            for (let i = 0; i < classMeta.fields.length; i++) {
+                const field = classMeta.fields[i];
+                if (field.skipped) continue;
+                prev[field.name] = json[field.name];
+            }
         }
         // treeMeta.json = json;
         return prev;
@@ -161,12 +162,10 @@ export function factoryEntity(Target: EntityClass, json: {}, prev: {} | undefine
     }
 }
 
-export function buildElementClassMeta(Cls: (new () => {}) | ClassMeta | undefined) {
-    return Cls instanceof ClassMeta
-        ? Cls
-        : Cls === undefined ? undefined : getClassMetaOrThrow((Cls as {}) as EntityClass);
+export function buildElementClassMeta(Class: EntityClass | ClassMeta | undefined) {
+    return Class instanceof ClassMeta ? Class : Class === undefined ? undefined : getClassMetaOrThrow(Class);
 }
-export function addField<T>(targetProto: {}, prop: string, propClassMeta: ClassMeta) {
+export function addField(targetProto: {}, prop: string, propClassMeta: ClassMeta) {
     const Target = targetProto.constructor as EntityClass;
     const hostClassMeta = getOrCreateClassMeta(Target, undefined!);
     const field = createField(prop, propClassMeta);
