@@ -216,11 +216,13 @@ function calcIfNeeded(atom: Atom) {
 function processTransaction(atom: AtomCalc) {
     let shift = 0;
     for (let i = 0; i < trxManager.current.changesLength; i += 2) {
+        const master = atom.masters[i - shift] as Atom;
         if (trxManager.current.changes[i] !== trxManager.current.transactionId) {
-            const parent = atom.masters[i - shift] as Atom;
-            removeChild(parent, atom);
+            removeChild(master, atom);
             atom.masters.splice(i - shift, 2);
             shift += 2;
+        } else {
+            atom.masters[i - shift + 1] = master.value;
         }
     }
 }
