@@ -1,11 +1,10 @@
 import { toJSON } from './Utils';
-import { getClassMetaOrThrow } from './ClassMeta';
-import { EntityClass, This } from './Entity';
+import { applyJsonToEntity, Base, getClassMetaOfEntity, JSONType } from './Entity';
 import { glob } from './Glob';
 import { run } from './Atom';
 import { hash, HashMap, hashType } from './HashMap';
-import { entity, factoryEntity, skip } from './Decorators';
 import { attachObject, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
+import { skip } from './Decorators';
 
 export type ReduxStore<T> = {
     getState(): T;
@@ -25,20 +24,20 @@ interface RootStoreOptions {
 }
 
 class LocalRootStore {
-    createId() {
-        return this.rootStore.createId();
-    }
+    // createId(prefix: string) {
+    //     return this.rootStore.createId(prefix);
+    // }
     constructor(public rootStore: RootStore) {
         this._treeMeta.parent = (this as {}) as TreeMeta;
     }
     private _treeMeta = new TreeMeta();
     private instanceMap = new Map<string, Map<string | number, {}>>();
-    dispatch(type: string, thisArg: This, payload: {}) {
+    dispatch(type: string, thisArg: Base, payload: {}) {
         detachObject(thisArg);
         this.rootStore.createInstance(thisArg);
         return this.rootStore.dispatch(type, thisArg, payload);
     }
-    getInstance<T>(Class: EntityClass<T>, id: number | string = 'default', json: {} | undefined): T {
+    getInstance(Class: typeof Base, id: number | string = 'default', json: {} | undefined) {
         const key = Class.name;
         let classMap = this.instanceMap.get(key);
         if (classMap === undefined) {
@@ -47,36 +46,57 @@ class LocalRootStore {
         }
         let instance = classMap.get(id);
         if (instance === undefined) {
-            instance = factoryEntity(Class, json, undefined);
-            (instance as This)._treeMeta._id = id;
+            const prevInTransaction = glob.inTransaction;
+            glob.inTransaction = true;
+            try {
+                instance = Class.create(json, undefined);
+            } finally {
+                glob.inTransaction = prevInTransaction;
+            }
+            (instance as Base)._treeMeta._id = id;
             classMap.set(id, instance);
             attachObject(this, instance, undefined);
         }
-        return instance as T;
+        return instance;
+    }
+    get instances() {
+        return this.rootStore.instances;
     }
     reset() {
         this.instanceMap.clear();
     }
 }
-@entity
-export class RootStore {
-    @skip
-    createId() {
-        return ++this.lastId;
-    }
+export class RootStore extends Base {
+    // createId(prefix: string) {
+    //     return prefix + '_' + ++this.lastId;
+    // }
+    //
+    // lastId = 0;
 
-    @skip lastId = 0;
     @hash(hashType())
-    instanceMap = new Map<string, Map<string | number, {}>>();
+    private instanceMap = new Map<string, Map<string | number, {}>>();
 
-    @skip _tempComponentStore = new LocalRootStore(this);
+    @skip private _tempComponentStore = new LocalRootStore(this);
 
-    @skip options: RootStoreOptions;
+    @skip private options!: RootStoreOptions;
 
     constructor(options: RootStoreOptions = {}) {
-        this.options = options;
+        super();
+        // this.options = options;
         getObjTreeMeta(this)!.parent = (this as {}) as TreeMeta;
     }
+
+    static create<T extends typeof Base>(
+        this: T,
+        json?: JSONType<InstanceType<T>>,
+        options: RootStoreOptions = {}
+    ): InstanceType<T> {
+        const instance = super.create.call(this, json);
+        instance.options = options;
+        return instance;
+    }
+
+    @skip instances = new Instances();
 
     @skip private subscribers: ((action: Action, state: {}) => void)[] = [];
     @skip
@@ -94,33 +114,40 @@ export class RootStore {
         if (glob.inTransaction) {
             return;
         }
-        const currentState = toJSON(this);
-        if (currentState !== state && state !== undefined) {
-            this._tempComponentStore.reset();
-            factoryEntity(this.constructor as EntityClass, state, this);
+        glob.inTransaction = true;
+        try {
+            const currentState = toJSON(this);
+            if (currentState !== state && state !== undefined) {
+                this._tempComponentStore.reset();
+                const SelfClass = this.constructor as typeof Base;
+                applyJsonToEntity(SelfClass, state, this);
+                run();
+            }
+        } finally {
+            glob.inTransaction = false;
             run();
         }
     }
 
     @skip
-    getInstance<T>(Class: EntityClass<T>, id: number | string = 'default'): T {
-        getClassMetaOrThrow(Class);
+    getInstance<T extends typeof Base>(Class: T, id: number | string = 'default'): InstanceType<T> {
+        getClassMetaOfEntity(Class);
         const key = Class.name;
         const classMap = this.instanceMap.get(key);
-        let instance = classMap === undefined ? undefined : (classMap.get(id) as T);
+        let instance = classMap === undefined ? undefined : (classMap.get(id) as InstanceType<T>);
         if (instance !== undefined && instance.constructor !== Object) {
             return instance;
         }
-        return this._tempComponentStore.getInstance(Class, id, instance);
+        return this._tempComponentStore.getInstance(Class, id, instance) as InstanceType<T>;
     }
 
     @skip
-    createInstance<T>(instance: This) {
-        const Class = instance.constructor as EntityClass;
+    createInstance<T>(instance: Base) {
+        const Class = instance.constructor as typeof Base;
         const key = Class.name;
         let classMap = this.instanceMap.get(key);
         if (classMap === undefined) {
-            const elementClassMeta = (Class.prototype as This)._classMeta;
+            const elementClassMeta = (Class.prototype as Base)._classMeta;
             classMap = HashMap.factory(elementClassMeta, {}, undefined);
             this.instanceMap.set(key, classMap);
         }
@@ -142,7 +169,7 @@ export class RootStore {
     // };
 
     @skip
-    dispatch(type: string, thisArg: This, payload: {}) {
+    dispatch(type: string, thisArg: Base, payload: {}) {
         const action: Action = { type: type, path: thisArg._treeMeta.id, payload };
         for (let i = 0; i < this.subscribers.length; i++) {
             const subscriber = this.subscribers[i];
@@ -151,17 +178,46 @@ export class RootStore {
     }
 }
 
+class Instances {
+    private instMap = new Map();
+
+    add(instance: Base) {
+        const key = instance.constructor.name;
+        let classMap = this.instMap.get(key);
+        if (classMap === undefined) {
+            classMap = new Map();
+            this.instMap.set(key, classMap);
+        }
+        classMap.set(instance._treeMeta.id, instance);
+    }
+    delete(instance: Base) {
+        const key = instance.constructor.name;
+        const classMap = this.instMap.get(key);
+        if (classMap === undefined) {
+            throw new Error("Instance map doesn't exist");
+        }
+        classMap.delete(instance._treeMeta.id, instance);
+    }
+    get(Class: typeof Base, id: string | number) {
+        const classMap = this.instMap.get(Class.name);
+        if (classMap === undefined) {
+            return undefined;
+        }
+        return classMap.get(id);
+    }
+}
+
 // function registerClass(rootStore: RootStore, classMeta: ClassMeta) {
-    // const { reducers, fields } = classMeta;
-    // for (let i = 0; i < reducers.length; i++) {
-    //     const { name, reducer } = reducers[i];
-    //     rootStore._reducersMap.set(name, reducer);
-    // }
-    // for (let i = 0; i < fields.length; i++) {
-    //     const field = fields[i];
-    //     for (let j = 0; j < field.subClassMeta.length; j++) {
-    //         const subClassMeta = field.subClassMeta[j];
-    //         registerClass(rootStore, subClassMeta);
-    //     }
-    // }
+// const { reducers, fields } = classMeta;
+// for (let i = 0; i < reducers.length; i++) {
+//     const { name, reducer } = reducers[i];
+//     rootStore._reducersMap.set(name, reducer);
+// }
+// for (let i = 0; i < fields.length; i++) {
+//     const field = fields[i];
+//     for (let j = 0; j < field.subClassMeta.length; j++) {
+//         const subClassMeta = field.subClassMeta[j];
+//         registerClass(rootStore, subClassMeta);
+//     }
+// }
 // }

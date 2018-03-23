@@ -2,17 +2,16 @@ import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './
 import { AtomValue } from './Atom';
 import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
-import { addField, buildElementClassMeta, entity, skip } from './Decorators';
+import { addField, buildElementClassMeta, calc, prop } from './Decorators';
 import { createField } from './Field';
-import { EntityClass } from './Entity';
+import { Base } from './Entity';
 
 function mutate(map: HashMap) {
     clearParentsJson(getObjTreeMeta(map)!);
 }
 
-@entity
-export class HashMap<T = {}> implements Map<string | number, T> {
-    @skip _classMeta = new ClassMeta(undefined!);
+export class HashMap<T = {}> extends Base implements Map<string | number, T> {
+    _classMeta = new ClassMeta(undefined!);
 
     static factory<T>(
         elementClassMeta: ClassMeta | undefined,
@@ -34,9 +33,10 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return map;
     }
 
-    private map: { [key: string]: AtomValue<T> } = {};
+    @prop private map: { [key: string]: AtomValue<T> } = {};
 
-    get _keys() {
+    @calc
+    private get _keys() {
         const keys: string[] = [];
         const map = this.map;
         for (const key in map) {
@@ -46,7 +46,8 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return keys;
     }
 
-    get _values() {
+    @calc
+    private get _values() {
         const keys = this._keys;
         const values = Array(keys.length);
         const map = this.map;
@@ -57,7 +58,8 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return values;
     }
 
-    get _keyValues() {
+    @calc
+    private get _keyValues() {
         const keys = this.keys;
         const values = this.values;
         const keyValues = Array(keys.length);
@@ -73,17 +75,14 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return this.keys.length;
     }
 
-    @skip
     keys() {
         return this._keys[Symbol.iterator]();
     }
 
-    @skip
     values() {
         return this._values[Symbol.iterator]();
     }
 
-    @skip
     get(key: string | number): T | undefined {
         const atom = this.map[key];
         if (atom !== undefined) {
@@ -92,12 +91,10 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return;
     }
 
-    @skip
     has(key: string | number) {
         return this.map[key] !== undefined;
     }
 
-    @skip
     set(key: string | number, value: T) {
         checkWeAreInAction();
         const classMeta = getClassMetaFromObj(this)!;
@@ -114,7 +111,6 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return this;
     }
 
-    @skip
     delete(key: string | number) {
         checkWeAreInAction();
         const item = this.get(key);
@@ -127,25 +123,24 @@ export class HashMap<T = {}> implements Map<string | number, T> {
         return false;
     }
 
-    @skip
     clear() {
         checkWeAreInAction();
         this.map = {};
         mutate(this);
     }
 
-    @skip
     entries(): IterableIterator<[string | number, T]> {
         return this._keyValues[Symbol.iterator]();
     }
 
-    @skip
     toJSON() {
+        if (this._treeMeta.json !== undefined) return this._treeMeta.json;
         const json = {};
         const map = this.map;
         for (const key in map) {
             json[key] = toJSON(map[key]);
         }
+        this._treeMeta.json = json;
         return json;
     }
 
@@ -163,8 +158,8 @@ export class HashMap<T = {}> implements Map<string | number, T> {
     }
 }
 
-export function hash<T>(Cls: EntityClass<T> | ClassMeta | undefined) {
-    return function<Prop extends string, Trg extends Record<Prop, Map<number | string, T> | undefined>>(
+export function hash<T>(Cls: typeof Base | ClassMeta | undefined) {
+    return function<Prop extends string, Trg extends Base /* & Record<Prop, Map<number | string, T> | undefined>*/>(
         targetProto: Trg,
         prop: Prop
     ) {
@@ -172,7 +167,7 @@ export function hash<T>(Cls: EntityClass<T> | ClassMeta | undefined) {
     };
 }
 
-export function hashType<T>(Class?: EntityClass<T> | ClassMeta) {
+export function hashType<T>(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap));
 }

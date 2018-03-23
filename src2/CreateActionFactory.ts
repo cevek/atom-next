@@ -1,10 +1,10 @@
 import { glob } from './Glob';
 import { getRootStore } from './TreeMeta';
-import { This } from './Entity';
+import { Base } from './Entity';
 import { run } from './Atom';
 
 export function createActionFactory<Fun extends Function>(type: string, reducer: Fun): Fun {
-    return (function(this: This, ...args: any[]) {
+    return (function(this: Base, ...args: any[]) {
         if (glob.inTransaction) {
             return reducer.call(this, ...args);
         } else {

@@ -1,11 +1,11 @@
 import { RootStore } from './RootStore';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { entity, sub } from './Decorators';
+import { sub } from './Decorators';
 import { connect } from './Component';
 import { array } from './Array';
-import { hash } from './HashMap';
 import { Provider } from './Provider';
+import { Base } from './Entity';
 
 const { connectViaExtension, extractState } = require('remotedev');
 const remotedev = connectViaExtension();
@@ -41,33 +41,26 @@ class TodoList1 {
 // users[0].id;
 
 let id = 0;
-@entity
-class Todo {
+class Todo extends Base {
     id = ++id;
     title = 'new todo';
     isDone = false;
     done(isDone: boolean) {
         this.isDone = isDone;
     }
-    constructor() {
-        console.log('new Todo');
-    }
 }
 
-@entity
-class User {}
+// class User extends Base {}
+//
+// class Fav extends Base {
+//     name = 'fav';
+// }
 
-@entity
-class Fav {
-    name = 'fav';
-}
-
-@entity
-class TodoStore {
+class TodoStore extends Base {
     @array(Todo) todos: Todo[] = [];
-    @sub(User) user: User | undefined = undefined;
+    // @sub(User) user: User | undefined = undefined;
 
-    @hash(Fav) favs = new Map<number, Fav>();
+    // @hash(Fav) favs = new Map<number, Fav>();
 
     addTodo(todo: Todo) {
         this.todos.push(todo);
@@ -81,19 +74,18 @@ class TodoStore {
     get unfinishedCount() {
         return this.todos.reduce((sum, todo) => sum + (todo.isDone ? 0 : 1), 0);
     }
-
     constructor() {
-        console.log('new TodoStore');
+        super();
     }
 }
 
-@entity
 class MyStore extends RootStore {
-    @sub(TodoStore) todoStore = new TodoStore();
+    @sub(TodoStore) todoStore = TodoStore.create();
 }
 
 function run() {
-    const store = new MyStore({});
+    //{ todoStore: { todos: [], user: {}, favs: undefined, unfinishedCount: 0 } }
+    const store = MyStore.create();
     remotedev.subscribe((message: any) => {
         const state = extractState(message);
         store.setState(state);
@@ -117,8 +109,7 @@ function run() {
     // });
 }
 
-@entity
-class TodoItemStore {
+class TodoItemStore extends Base {
     visible = false;
     setVisible(visible: boolean) {
         this.visible = visible;

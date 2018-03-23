@@ -1,9 +1,9 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
 import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
-import { addField, buildElementClassMeta, entity, skip } from './Decorators';
+import { addField, buildElementClassMeta, prop } from './Decorators';
 import { createField } from './Field';
-import { EntityClass } from './Entity';
+import { Base } from './Entity';
 
 function mutate<Ret>(arr: ArrayProxy) {
     arr._version++;
@@ -18,9 +18,8 @@ function transformAndAttach(arr: ArrayProxy, items: {}[]) {
     }
 }
 
-@entity
-export class ArrayProxy<T = {}> {
-    _version = 0;
+export class ArrayProxy<T = {}> extends Base {
+    @prop _version = 0;
 
     static factory(elementClassMeta: ClassMeta | undefined, json: ArrayProxy | {}[], array: ArrayProxy | undefined) {
         if (json instanceof ArrayProxy) return json;
@@ -37,19 +36,14 @@ export class ArrayProxy<T = {}> {
         return array;
     }
 
-    @skip _classMeta = new ClassMeta(undefined!);
+    _classMeta = new ClassMeta(undefined!);
 
-    @skip _values: T[] = [];
+    _values: T[] = [];
 
     get length() {
         return this._values.length;
     }
-    //
-    // constructor(elementClassMeta: ClassMeta | undefined) {
-    //     this._classMeta.fields.push(createField('element', elementClassMeta));
-    // }
 
-    @skip
     push(...items: T[]) {
         checkWeAreInAction();
         transformAndAttach(this, items);
@@ -57,7 +51,7 @@ export class ArrayProxy<T = {}> {
         mutate(this);
         return ret;
     }
-    @skip
+
     unshift(...items: T[]) {
         checkWeAreInAction();
         transformAndAttach(this, items);
@@ -65,28 +59,26 @@ export class ArrayProxy<T = {}> {
         mutate(this);
         return ret;
     }
-    @skip
     pop() {
         checkWeAreInAction();
-        const ret = detachObject(this._values.pop());
+        const ret = this._values.pop();
+        detachObject(ret);
         mutate(this);
         return ret;
     }
-    @skip
     shift() {
         checkWeAreInAction();
-        const ret = detachObject(this._values.shift());
+        const ret = this._values.shift();
+        detachObject(ret);
         mutate(this);
         return ret;
     }
-    @skip
     reverse() {
         checkWeAreInAction();
         this._values.reverse();
         mutate(this);
         return this;
     }
-    @skip
     splice(start: number, deleteCount = 0, ...items: T[]) {
         checkWeAreInAction();
         // let shift = (start < 0 ? this._values.length + start : start) + Math.max(deleteCount, 0);
@@ -99,7 +91,6 @@ export class ArrayProxy<T = {}> {
         return ret;
     }
 
-    @skip
     sort(compareFn?: (a: T | undefined, b: T | undefined) => number) {
         checkWeAreInAction();
         this._values.sort(compareFn);
@@ -107,13 +98,11 @@ export class ArrayProxy<T = {}> {
         return this;
     }
 
-    @skip
     get(idx: number) {
         const version = this._version;
         return this._values[idx];
     }
 
-    @skip
     set(idx: number, value: T) {
         const prevValue = idx < this._values.length ? this._values[idx] : undefined;
         const classMeta = getClassMetaFromObj(this)!;
@@ -123,12 +112,13 @@ export class ArrayProxy<T = {}> {
         mutate(this);
     }
 
-    @skip
     toJSON() {
+        if (this._treeMeta.json !== undefined) return this._treeMeta.json;
         const arr = Array(this._values.length);
         for (let i = 0; i < this._values.length; i++) {
             arr[i] = toJSON(this._values[i]);
         }
+        this._treeMeta.json = arr;
         return arr;
     }
 
@@ -162,13 +152,16 @@ for (let i = 0; i < immutableMethods.length; i++) {
     };
 }
 
-export function array<T>(Cls: EntityClass | ClassMeta) {
-    return function<Prop extends string, Trg extends Record<Prop, T[] | undefined>>(targetProto: Trg, prop: Prop) {
+export function array<T>(Cls: typeof Base | ClassMeta) {
+    return function<Prop extends string, Trg extends Base & Record<Prop, T[] | undefined>>(
+        targetProto: Trg,
+        prop: Prop
+    ) {
         addField(targetProto, prop, arrayType(Cls));
     };
 }
 
-export function arrayType<T>(Class?: EntityClass<T> | ClassMeta) {
+export function arrayType(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta((json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy));
 }
