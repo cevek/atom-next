@@ -137,9 +137,16 @@ const TodoListHOC = connect(TodoList, (store: MyStore) => {
 const TodoItemHOC = connect(TodoItem, (store: MyStore, props: { todo: Todo }) => {
     const { activeTodo } = store.todoStore;
     const local = store.getInstance(TodoItemStore, props.todo.id);
-    return { local, selectTodo: (todo: Todo) => store.todoStore.selectTodo(todo), activeTodo };
+    return {
+        local,
+        selectTodo: (todo: Todo) => store.todoStore.selectTodo(todo),
+        removeTodo: (todo: Todo) => store.todoStore.removeTodo(todo),
+        activeTodo,
+    };
 });
-function TodoItem(props: { todo: Todo; local: TodoItemStore } & Pick<TodoStore, 'selectTodo' | 'activeTodo'>) {
+function TodoItem(
+    props: { todo: Todo; local: TodoItemStore } & Pick<TodoStore, 'selectTodo' | 'activeTodo' | 'removeTodo'>
+) {
     // console.log(props.local);
     return (
         <div>
@@ -162,6 +169,7 @@ function TodoItem(props: { todo: Todo; local: TodoItemStore } & Pick<TodoStore, 
                 type="checkbox"
             />{' '}
             {props.local.visible ? 'Yes' : 'No'}
+            <button onClick={() => props.removeTodo(props.todo)}>remove</button>
         </div>
     );
 }
