@@ -69,7 +69,21 @@ export function run() {
     updateList.pos = 0;
     trxManager.digestRunning = false;
 }
+
+// function validateAtoms(atom: Atom) {
+//     if (atom.slaves !== undefined) {
+//         for (let i = 0; i < atom.slaves.length; i++) {
+//             const slave = atom.slaves[i];
+//             if (slave.masters.indexOf(atom) === -1) {
+//                 throw new Error('doesnt find master');
+//             }
+//             validateAtoms(slave);
+//         }
+//     }
+// }
+
 function actualize(atom: Atom) {
+    // validateAtoms(atom);
     // console.log('actualize', atom.name, atom.value);
     if (atom.slaves !== void 0) {
         loop: for (let i = 0; i < atom.slaves.length; i++) {
@@ -175,7 +189,9 @@ function calcIfNeeded(atom: Atom) {
     // console.log('calcIfNeeded', atom.name, atom.state, atom.value);
     if (atom.state === AtomState.ACTUAL) return false;
     if (atom.masters === void 0 || atom.state === AtomState.DIRTY) {
-        atom.masters = [];
+        if (atom.masters === void 0) {
+            atom.masters = [];
+        }
         return calc(atom);
     }
     // Maybe dirty
@@ -220,7 +236,9 @@ function detachCalc(atom: AtomCalc) {
         } else {
             removeChild(master, atom);
         }
+        // validateAtoms(master);
     }
+    atom.name += '_detached';
     atom.state = AtomState.MAYBE_DIRTY;
     atom.masters = undefined!;
 }
@@ -247,6 +265,7 @@ function setValue(atom: AtomValue, value: {}) {
 
 export type Atom<T = {}> = AtomCalc<T> | AtomValue<T>;
 
+let id = 0;
 export class AtomCalc<T = {}> {
     slaves?: AtomCalc[] = void 0;
     masters: (Atom | {})[] = undefined!;
@@ -256,6 +275,7 @@ export class AtomCalc<T = {}> {
     state = AtomState.DIRTY;
 
     constructor(owner: {} | undefined, calcFun: () => T, public name: string) {
+        this.name += ++id;
         this.owner = owner;
         this.calcFun = calcFun;
     }
@@ -285,6 +305,7 @@ export class AtomValue<T = {}> {
     state!: AtomState.ACTUAL;
 
     constructor(value: T, public name: string) {
+        this.name += ++id;
         this.value = value;
     }
 
