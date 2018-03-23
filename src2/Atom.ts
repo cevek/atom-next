@@ -74,8 +74,9 @@ function actualize(atom: Atom) {
     if (atom.slaves !== void 0) {
         loop: for (let i = 0; i < atom.slaves.length; i++) {
             const child = atom.slaves[i];
-            for (let i = 0; i < child.masters.length; i += 2) {
-                const master = child.masters[i] as Atom;
+            if (child.state === AtomState.ACTUAL) continue;
+            for (let j = 0; j < child.masters.length; j += 2) {
+                const master = child.masters[j] as Atom;
                 // console.log('master', master);
                 if (master === child) continue;
                 if (master.state === AtomState.MAYBE_DIRTY || master.state === AtomState.DIRTY) {
@@ -85,6 +86,7 @@ function actualize(atom: Atom) {
             // if we have last one maybe dirty parent
             if (calcIfNeeded(child)) {
                 actualize(child);
+                i = -1; // cause atom.slaves can be mutated by removing child from atom
             }
         }
     }
