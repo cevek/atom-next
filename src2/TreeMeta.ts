@@ -1,10 +1,7 @@
 import { Base } from './Entity';
 import { RootStore } from './RootStore';
 
-let idCounter = 0;
 export class TreeMeta<T = {}> {
-    id: string | number = ++idCounter;
-    _id: string | number | undefined = undefined;
     parent: TreeMeta | undefined = undefined;
     json: {} | undefined = undefined;
     atoms: { [key: string]: {} } = {};
@@ -27,11 +24,12 @@ export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     }
     return;
 }
-export function getRootStoreFromObj(obj: {} | undefined): RootStore {
-    if (obj instanceof Object) {
-        return getRootStore((obj as Base)._treeMeta)!;
+export function getRootStoreOrThrow(treeMeta: TreeMeta): RootStore {
+    const rootStore = getRootStore(treeMeta);
+    if (rootStore === undefined) {
+        throw new Error('Object is not in the tree');
     }
-    return undefined!;
+    return rootStore;
 }
 
 export function attachObject(current: {}, value: {}, prevValue: {} | undefined) {
@@ -63,8 +61,7 @@ export function getObjTreeMeta<T>(obj: {} | undefined) {
 export function detachObject(item: {} | undefined) {
     const treeMeta = getObjTreeMeta(item);
     if (treeMeta !== undefined) {
-        const rootStore = getRootStore(treeMeta);
-        if (rootStore === undefined) throw new Error('Object already has detached');
+        const rootStore = getRootStoreOrThrow(treeMeta);
         rootStore.instances.delete(item as Base);
         treeMeta.parent = undefined;
     }

@@ -31,30 +31,32 @@ class LocalRootStore {
         this._treeMeta.parent = (this as {}) as TreeMeta;
     }
     private _treeMeta = new TreeMeta();
-    private instanceMap = new Map<string, Map<string | number, {}>>();
+    private tempInstances = new Set<Base>();
     dispatch(type: string, thisArg: Base, payload: {}) {
+        // if we change our component state
         detachObject(thisArg);
-        this.rootStore.createInstance(thisArg);
+        // apply it to our normal store within transaction
+        this.rootStore.saveInstance(thisArg);
         return this.rootStore.dispatch(type, thisArg, payload);
     }
     getInstance(Class: typeof Base, id: number | string = 'default', json: {} | undefined) {
-        const key = Class.name;
-        let classMap = this.instanceMap.get(key);
-        if (classMap === undefined) {
-            classMap = new Map();
-            this.instanceMap.set(key, classMap);
+        let instance = this.instances.get(Class, id);
+        if (instance !== undefined) {
+            if (!this.tempInstances.has(instance)) {
+                instance = undefined;
+            }
         }
-        let instance = classMap.get(id);
         if (instance === undefined) {
             const prevInTransaction = glob.inTransaction;
             glob.inTransaction = true;
             try {
                 instance = Class.create(json, undefined);
+                instance.id = id;
             } finally {
                 glob.inTransaction = prevInTransaction;
             }
-            (instance as Base)._treeMeta._id = id;
-            classMap.set(id, instance);
+            this.instances.add(instance);
+            this.tempInstances.add(instance);
             attachObject(this, instance, undefined);
         }
         return instance;
@@ -63,24 +65,18 @@ class LocalRootStore {
         return this.rootStore.instances;
     }
     reset() {
-        this.instanceMap.clear();
+        this.tempInstances.clear();
     }
 }
 export class RootStore extends Base {
-    // createId(prefix: string) {
-    //     return prefix + '_' + ++this.lastId;
-    // }
-    //
-    // lastId = 0;
-
     @hash(hashType())
-    private instanceMap = new Map<string, Map<string | number, {}>>();
+    private instanceMap = new Map<string, Map<string | number, Base>>();
 
     @skip private _tempComponentStore = new LocalRootStore(this);
 
     @skip private options!: RootStoreOptions;
 
-    constructor(options: RootStoreOptions = {}) {
+    constructor() {
         super();
         // this.options = options;
         getObjTreeMeta(this)!.parent = (this as {}) as TreeMeta;
@@ -142,7 +138,7 @@ export class RootStore extends Base {
     }
 
     @skip
-    createInstance<T>(instance: Base) {
+    saveInstance<T>(instance: Base) {
         const Class = instance.constructor as typeof Base;
         const key = Class.name;
         let classMap = this.instanceMap.get(key);
@@ -151,7 +147,7 @@ export class RootStore extends Base {
             classMap = HashMap.factory(elementClassMeta, {}, undefined);
             this.instanceMap.set(key, classMap);
         }
-        classMap.set(instance._treeMeta._id!, instance);
+        classMap.set(instance.id, instance);
     }
 
     // @skip
@@ -170,7 +166,7 @@ export class RootStore extends Base {
 
     @skip
     dispatch(type: string, thisArg: Base, payload: {}) {
-        const action: Action = { type: type, path: thisArg._treeMeta.id, payload };
+        const action: Action = { type: type, path: thisArg.id, payload };
         for (let i = 0; i < this.subscribers.length; i++) {
             const subscriber = this.subscribers[i];
             subscriber(action, toJSON(this)!);
@@ -179,7 +175,7 @@ export class RootStore extends Base {
 }
 
 class Instances {
-    private instMap = new Map();
+    private instMap = new Map<string, Map<string | number, Base>>();
 
     add(instance: Base) {
         const key = instance.constructor.name;
@@ -188,7 +184,7 @@ class Instances {
             classMap = new Map();
             this.instMap.set(key, classMap);
         }
-        classMap.set(instance._treeMeta.id, instance);
+        classMap.set(instance.id, instance);
     }
     delete(instance: Base) {
         const key = instance.constructor.name;
@@ -196,9 +192,9 @@ class Instances {
         if (classMap === undefined) {
             throw new Error("Instance map doesn't exist");
         }
-        classMap.delete(instance._treeMeta.id, instance);
+        classMap.delete(instance.id);
     }
-    get(Class: typeof Base, id: string | number) {
+    get(Class: typeof Base, id: string | number): Base | undefined {
         const classMap = this.instMap.get(Class.name);
         if (classMap === undefined) {
             return undefined;

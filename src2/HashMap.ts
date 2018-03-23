@@ -1,6 +1,6 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
 import { AtomValue } from './Atom';
-import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
+import { ClassMeta, getClassMetaFromObj, getTransformValue, setTransformValue } from './ClassMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
 import { addField, buildElementClassMeta, calc, prop } from './Decorators';
 import { createField } from './Field';
@@ -11,7 +11,7 @@ function mutate(map: HashMap) {
 }
 
 export class HashMap<T = {}> extends Base implements Map<string | number, T> {
-    _classMeta = new ClassMeta(undefined!);
+    _classMeta = new ClassMeta(undefined, undefined);
 
     static factory<T>(
         elementClassMeta: ClassMeta | undefined,
@@ -49,11 +49,12 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
     @calc
     private get _values() {
         const keys = this._keys;
+        const field = this._classMeta.fields[0];
         const values = Array(keys.length);
         const map = this.map;
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
-            values[i] = map[key].get();
+            values[i] = getTransformValue(this, field, map[key].get());
         }
         return values;
     }
@@ -100,9 +101,10 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         const classMeta = getClassMetaFromObj(this)!;
         let atom = this.map[key];
         const prevValue = atom === undefined ? undefined : (atom.value as T);
-        value = transformValue(classMeta.fields[0], value, prevValue);
+        value = setTransformValue(classMeta.fields[0], value, prevValue);
         if (atom == undefined) {
-            this.map[key] = atom = new AtomValue(value, 'HashMap.map.' + key);
+            atom = new AtomValue(value, 'HashMap.map.' + key);
+            this.map[key] = atom;
         } else {
             atom.set(value);
         }
@@ -138,7 +140,7 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         const json = {};
         const map = this.map;
         for (const key in map) {
-            json[key] = toJSON(map[key]);
+            json[key] = toJSON(map[key].value);
         }
         this._treeMeta.json = json;
         return json;
@@ -169,5 +171,5 @@ export function hash<T>(Cls: typeof Base | ClassMeta | undefined) {
 
 export function hashType<T>(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap));
+    return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap), undefined);
 }

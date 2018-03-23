@@ -10,7 +10,10 @@ export class ClassMeta {
     fields: Field[] = [];
     reducers: Reducer[] = [];
     finished = false;
-    constructor(public factory: (json: {}, prevValue: {} | undefined) => {}) {}
+    constructor(
+        public setTransformer: ((json: {}, prevValue: {} | undefined) => {}) | undefined,
+        public getTransformer: ((parent: Base, value: {}) => {}) | undefined
+    ) {}
 }
 
 export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassMeta: ClassMeta | undefined) {
@@ -28,15 +31,17 @@ export function getClassMetaFromObj(obj: {} | undefined) {
     }
 }
 
-export function transformValue<T>(valueField: Field, value: T, prevValue: T | undefined): T {
-    // if (valueField.classMeta === undefined) {
-    //     if (value instanceof Object) {
-    //         valueField.classMeta = ((value as {}) as This)._classMeta;
-    //     }
-    // }
+export function setTransformValue<T>(valueField: Field, value: T, prevValue: T | undefined): T {
     if (value === null || typeof value !== 'object') return value;
-    if (valueField.classMeta !== undefined) {
-        return valueField.classMeta.factory(value, prevValue) as T;
+    if (valueField.classMeta !== undefined && valueField.classMeta.setTransformer !== undefined) {
+        return valueField.classMeta.setTransformer(value, prevValue) as T;
+    }
+    return value;
+}
+
+export function getTransformValue<T>(parent: Base, valueField: Field, value: T): T {
+    if (valueField.classMeta !== undefined && valueField.classMeta.getTransformer !== undefined) {
+        return valueField.classMeta.getTransformer(parent, value) as T;
     }
     return value;
 }

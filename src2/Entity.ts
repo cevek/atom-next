@@ -4,13 +4,19 @@ import { reflectClass, ReflectClassResult } from './ReflectClass';
 import { createActionFactory } from './CreateActionFactory';
 import { toJSON } from './Utils';
 import { addField, setCalcProp, setProp } from './Decorators';
+import { AtomValue } from './Atom';
 
 type Methods<T> = { [P in keyof T]: T[P] extends Function ? P : never }[keyof T];
 export type JSONType<T, Excluded = never> = { id?: string | number | undefined } & {
     [P in Exclude<keyof T, Methods<T> | '_treeMeta' | '_classMeta' | 'atoms' | 'id' | Excluded>]: JSONType<T[P]>
 };
-// let idCounter = 0;
+
+let idCounter = 0;
 export class Base {
+    id!: number | string;
+    // getUniqueId() {
+    //     return this.constructor.name + '_' + this.id;
+    // }
     _treeMeta = new TreeMeta();
     _classMeta!: ClassMeta;
     constructor() {}
@@ -40,7 +46,10 @@ export class Base {
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
             if (field.skipped) continue;
-            json[field.name] = toJSON(this[field.name]);
+            const atom = this._treeMeta.atoms[field.name] as AtomValue | undefined;
+            if (atom !== undefined) {
+                json[field.name] = toJSON(atom.value);
+            }
         }
         treeMeta.json = json;
         return json;
@@ -54,13 +63,13 @@ export function applyJsonToEntity(Class: typeof Base, json: {} | undefined, inst
     // glob.inTransaction = true;
     if (instance === undefined) {
         instance = new Class() as Base;
+        if (instance.id === undefined) {
+            instance.id = 'auto' + ++idCounter;
+        }
     }
     const classMeta = instance._classMeta;
     // const treeMeta = prev._treeMeta;
     if (json !== undefined) {
-        if (json['id'] !== undefined) {
-            instance._treeMeta.id = json['id'];
-        }
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
             if (field.skipped) continue;
@@ -77,8 +86,9 @@ export function getClassMetaOfEntity(Class: typeof Base) {
     }
     let classMeta = proto._classMeta;
     if (classMeta === undefined) {
-        classMeta = new ClassMeta((json, prev) => Class.create(json, prev as Base));
+        classMeta = new ClassMeta((json, prev) => Class.create(json, prev as Base), undefined);
         Class.prototype._classMeta = classMeta;
+        // classMeta.fields.push(createField('id', undefined));
     }
     return classMeta;
 }

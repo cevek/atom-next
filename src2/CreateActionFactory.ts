@@ -1,5 +1,5 @@
 import { glob } from './Glob';
-import { getRootStore } from './TreeMeta';
+import { getRootStoreOrThrow } from './TreeMeta';
 import { Base } from './Entity';
 import { run } from './Atom';
 
@@ -11,14 +11,10 @@ export function createActionFactory<Fun extends Function>(type: string, reducer:
             const prevInTransaction = glob.inTransaction;
             glob.inTransaction = true;
             try {
-                const rootStore = getRootStore(this._treeMeta);
-                if (rootStore !== undefined) {
-                    const res = reducer.call(this, ...args);
-                    rootStore.dispatch(type, this, {});
-                    return res;
-                } else {
-                    throw new Error('This object is not in the store tree');
-                }
+                const rootStore = getRootStoreOrThrow(this._treeMeta);
+                const res = reducer.call(this, ...args);
+                rootStore.dispatch(type, this, {});
+                return res;
             } finally {
                 glob.inTransaction = prevInTransaction;
                 run();

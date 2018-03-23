@@ -1,6 +1,6 @@
-import { attachObject, clearParentsJson, TreeMeta } from './TreeMeta';
+import { attachObject, clearParentsJson, getRootStoreOrThrow, TreeMeta } from './TreeMeta';
 import { Base, getClassMetaOfEntity } from './Entity';
-import { ClassMeta, transformValue } from './ClassMeta';
+import { ClassMeta, getTransformValue, setTransformValue } from './ClassMeta';
 import { createField, Field } from './Field';
 import { KeyedAtomCalc } from './KeyedAtomCalc';
 import { Atom, AtomCalc, AtomValue } from './Atom';
@@ -24,10 +24,12 @@ export function sub<T>(Class: typeof Base) {
         addField(targetProto, prop, getClassMetaOfEntity(Class));
     };
 }
+// noinspection JSUnusedLocalSymbols
 export function key<Prop extends string, Host extends Base & Record<Prop, (key: number) => {} | undefined>>(
     target: Host,
     prop: Prop
 ): any;
+// noinspection JSUnusedLocalSymbols
 export function key<Prop extends string, Host extends Base & Record<Prop, (key: string) => {} | undefined>>(
     target: Host,
     prop: Prop
@@ -50,19 +52,32 @@ export function key(targetProto: Base, prop: string) {
 }
 
 export function skip<T>(targetProto: Base, prop: string) {
-    const Target = targetProto.constructor as typeof Base;
-    const classMeta = getClassMetaOfEntity(Target);
-    const field = createField(prop, undefined);
+    const field = addField(targetProto, prop, undefined);
     field.skipped = true;
-    classMeta.fields.push(field);
 }
 
-export function ref<T>(targetProto: Base, prop: string) {
-    const Target = targetProto.constructor as typeof Base;
-    const classMeta = getClassMetaOfEntity(Target);
-    // const field = createField(prop, undefined);
-    // field.skipped = true;
-    // classMeta.fields.push(field);
+export function ref<T>(Class: typeof Base) {
+    return function<Prop extends string, Trg extends Base /* & Record<Prop, Map<number | string, T> | undefined>*/>(
+        targetProto: Trg,
+        prop: Prop
+    ) {
+        addField(
+            targetProto,
+            prop,
+            new ClassMeta(
+                value => {
+                    if (value instanceof Base) {
+                        return value.id;
+                    }
+                    throw new Error('Value is not instance of the Base class');
+                },
+                (parent, value) => {
+                    const rootStore = getRootStoreOrThrow(parent._treeMeta);
+                    return rootStore.instances.get(Class, value as string)!;
+                }
+            )
+        );
+    };
 }
 
 export function buildElementClassMeta(Class: typeof Base | ClassMeta | undefined) {
@@ -79,6 +94,7 @@ export function addField(targetProto: Base, prop: string, propClassMeta: ClassMe
     if (propClassMeta !== undefined) {
         field.classMeta = propClassMeta;
     }
+    return field;
 }
 
 export function setProp(Class: typeof Base, field: Field) {
@@ -86,13 +102,14 @@ export function setProp(Class: typeof Base, field: Field) {
     // field.added = true;
     const prop = field.name;
     Object.defineProperty(Class.prototype, prop, {
+        enumerable: true,
         get: function(this: Base) {
             let treeMeta = this._treeMeta;
             let atom = treeMeta.atoms[prop] as AtomValue;
             if (atom === undefined) {
                 return undefined;
             }
-            return atom.get();
+            return getTransformValue(this, field, atom.get());
         },
         set: function(this: Base, value: {}) {
             let treeMeta = this._treeMeta;
@@ -101,9 +118,10 @@ export function setProp(Class: typeof Base, field: Field) {
             }
             let atom = treeMeta.atoms[prop] as AtomValue | undefined;
             const prevValue = atom === undefined ? undefined : atom!.value;
-            value = transformValue(field, value, prevValue);
+            value = setTransformValue(field, value, prevValue);
             if (atom === undefined) {
-                treeMeta.atoms[prop] = atom = new AtomValue(value, Class.name + '.' + prop);
+                atom = new AtomValue(value, Class.name + '.' + prop);
+                treeMeta.atoms[prop] = atom;
             } else {
                 checkWeAreInAction();
                 atom.set(value);

@@ -1,6 +1,6 @@
 import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
-import { ClassMeta, getClassMetaFromObj, transformValue } from './ClassMeta';
+import { ClassMeta, getClassMetaFromObj, getTransformValue, setTransformValue } from './ClassMeta';
 import { addField, buildElementClassMeta, prop } from './Decorators';
 import { createField } from './Field';
 import { Base } from './Entity';
@@ -12,10 +12,15 @@ function mutate<Ret>(arr: ArrayProxy) {
 
 function transformAndAttach(arr: ArrayProxy, items: {}[]) {
     for (let i = 0; i < items.length; i++) {
-        const value = transformValue(arr._classMeta.fields[0], items[i], undefined);
+        const value = setTransformValue(arr._classMeta.fields[0], items[i], undefined);
         items[i] = value;
         attachObject(arr, value, undefined);
     }
+}
+
+function checkVersion(arr: ArrayProxy) {
+    // noinspection BadExpressionStatementJS
+    arr._version;
 }
 
 export class ArrayProxy<T = {}> extends Base {
@@ -36,7 +41,7 @@ export class ArrayProxy<T = {}> extends Base {
         return array;
     }
 
-    _classMeta = new ClassMeta(undefined!);
+    _classMeta = new ClassMeta(undefined, undefined);
 
     _values: T[] = [];
 
@@ -64,14 +69,14 @@ export class ArrayProxy<T = {}> extends Base {
         const ret = this._values.pop();
         detachObject(ret);
         mutate(this);
-        return ret;
+        return getTransformValue(this, this._classMeta.fields[0], ret);
     }
     shift() {
         checkWeAreInAction();
         const ret = this._values.shift();
         detachObject(ret);
         mutate(this);
-        return ret;
+        return getTransformValue(this, this._classMeta.fields[0], ret);
     }
     reverse() {
         checkWeAreInAction();
@@ -80,11 +85,13 @@ export class ArrayProxy<T = {}> extends Base {
         return this;
     }
     splice(start: number, deleteCount = 0, ...items: T[]) {
+        const field = this._classMeta.fields[0];
         checkWeAreInAction();
-        // let shift = (start < 0 ? this._values.length + start : start) + Math.max(deleteCount, 0);
         const ret = this._values.splice(start, deleteCount, ...items);
         for (let i = 0; i < ret.length; i++) {
-            detachObject(ret[i]);
+            const value = ret[i];
+            detachObject(value);
+            ret[i] = getTransformValue(this, field, value);
         }
         transformAndAttach(this, items);
         mutate(this);
@@ -99,14 +106,14 @@ export class ArrayProxy<T = {}> extends Base {
     }
 
     get(idx: number) {
-        const version = this._version;
-        return this._values[idx];
+        checkVersion(this);
+        return getTransformValue(this, this._classMeta.fields[0], this._values[idx]);
     }
 
     set(idx: number, value: T) {
         const prevValue = idx < this._values.length ? this._values[idx] : undefined;
         const classMeta = getClassMetaFromObj(this)!;
-        value = transformValue(classMeta.fields[0], value, prevValue);
+        value = setTransformValue(classMeta.fields[0], value, prevValue);
         attachObject(this, value, prevValue);
         this._values[idx] = value;
         mutate(this);
@@ -147,8 +154,15 @@ for (let i = 0; i < immutableMethods.length; i++) {
     const method = immutableMethods[i];
     const fn = Array.prototype[method];
     ArrayProxy.prototype[method] = function(this: ArrayProxy) {
-        const version = this._version;
-        return fn.apply(this._values, arguments);
+        checkVersion(this);
+        const field = this._classMeta.fields[0];
+        let values = this._values;
+        if (field.classMeta !== undefined && field.classMeta.getTransformer !== undefined) {
+            for (let j = 0; j < values.length; j++) {
+                values[j] = getTransformValue(this, field, values[j]);
+            }
+        }
+        return fn.apply(values, arguments);
     };
 }
 
@@ -163,5 +177,8 @@ export function array<T>(Cls: typeof Base | ClassMeta) {
 
 export function arrayType(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta((json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy));
+    return new ClassMeta(
+        (json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
+        undefined
+    );
 }

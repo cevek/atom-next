@@ -1,7 +1,7 @@
 import { RootStore } from './RootStore';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { sub } from './Decorators';
+import { ref, sub } from './Decorators';
 import { connect } from './Component';
 import { array } from './Array';
 import { Provider } from './Provider';
@@ -58,6 +58,7 @@ class Todo extends Base {
 
 class TodoStore extends Base {
     @array(Todo) todos: Todo[] = [];
+    @ref(Todo) activeTodo: Todo | undefined = undefined;
     // @sub(User) user: User | undefined = undefined;
 
     // @hash(Fav) favs = new Map<number, Fav>();
@@ -70,6 +71,9 @@ class TodoStore extends Base {
         if (pos > -1) {
             this.todos.splice(pos, 1);
         }
+    }
+    selectTodo(todo: Todo) {
+        this.activeTodo = todo;
     }
     get unfinishedCount() {
         return this.todos.reduce((sum, todo) => sum + (todo.isDone ? 0 : 1), 0);
@@ -116,27 +120,34 @@ class TodoItemStore extends Base {
     }
 }
 
-function TodoList(props: Pick<TodoStore, 'todos' | 'unfinishedCount'>) {
+function TodoList(props: Pick<TodoStore, 'todos' | 'unfinishedCount' | 'activeTodo'>) {
     return (
         <div>
             {props.todos.map((todo, i) => <TodoItemHOC todo={todo} key={i} />)}
             <div>{props.unfinishedCount}</div>
+            {props.activeTodo && <div>Active todoItem: {props.activeTodo.title + props.activeTodo.id}</div>}
         </div>
     );
 }
 const TodoListHOC = connect(TodoList, (store: MyStore) => {
-    const { todos, unfinishedCount } = store.todoStore;
-    return { todos, unfinishedCount };
+    const { todos, unfinishedCount, activeTodo } = store.todoStore;
+    return { todos, unfinishedCount, activeTodo };
 });
 
 const TodoItemHOC = connect(TodoItem, (store: MyStore, props: { todo: Todo }) => {
+    const { activeTodo } = store.todoStore;
     const local = store.getInstance(TodoItemStore, props.todo.id);
-    return { local };
+    return { local, selectTodo: (todo: Todo) => store.todoStore.selectTodo(todo), activeTodo };
 });
-function TodoItem(props: { todo: Todo; local: TodoItemStore }) {
+function TodoItem(props: { todo: Todo; local: TodoItemStore } & Pick<TodoStore, 'selectTodo' | 'activeTodo'>) {
     // console.log(props.local);
     return (
         <div>
+            <input
+                checked={props.activeTodo === props.todo}
+                onClick={() => props.selectTodo(props.todo)}
+                type="radio"
+            />{' '}
             <label style={{ textDecoration: props.todo.isDone ? 'line-through' : undefined }}>
                 <input
                     checked={props.todo.isDone}
