@@ -1,5 +1,5 @@
 import { toJSON } from './Utils';
-import { applyJsonToEntity, Base, getClassMetaOfEntity, JSONType } from './Entity';
+import { Base, getClassMetaOfEntity, JSONType } from './Entity';
 import { glob } from './Glob';
 import { run } from './Atom';
 import { hash, HashMap, hashType } from './HashMap';
@@ -84,12 +84,11 @@ export class RootStore extends Base {
 
     static create<T extends typeof Base>(
         this: T,
-        json?: JSONType<InstanceType<T>>,
-        options: RootStoreOptions = {}
+        json?: JSONType<InstanceType<T>>
+        // options: RootStoreOptions = {}
     ): InstanceType<T> {
-        const instance = super.create.call(this, json);
-        instance.options = options;
-        return instance;
+        // instance.options = options;
+        return super.create.call(this, json);
     }
 
     @skip instances = new Instances();
@@ -115,8 +114,7 @@ export class RootStore extends Base {
             const currentState = toJSON(this);
             if (currentState !== state && state !== undefined) {
                 this._tempComponentStore.reset();
-                const SelfClass = this.constructor as typeof Base;
-                applyJsonToEntity(SelfClass, state, this);
+                this.fromJSON(state);
                 run();
             }
         } finally {
@@ -182,6 +180,9 @@ class Instances {
         let classMap = this.instMap.get(key);
         if (classMap === undefined) {
             classMap = new Map();
+            if (this.instMap.has(key)) {
+                throw new Error('Instance already exists');
+            }
             this.instMap.set(key, classMap);
         }
         classMap.set(instance.id, instance);
@@ -200,6 +201,14 @@ class Instances {
             return undefined;
         }
         return classMap.get(id);
+    }
+
+    getOrThrow(Class: typeof Base, id: string | number): Base | undefined {
+        const res = this.get(Class, id);
+        if (res === undefined) {
+            throw new Error('Instance has not in the tree');
+        }
+        return res;
     }
 }
 

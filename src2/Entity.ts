@@ -1,4 +1,4 @@
-import { TreeMeta } from './TreeMeta';
+import { getRootStore, TreeMeta } from './TreeMeta';
 import { ClassMeta } from './ClassMeta';
 import { reflectClass, ReflectClassResult } from './ReflectClass';
 import { createActionFactory } from './CreateActionFactory';
@@ -13,35 +13,71 @@ export type JSONType<T, Excluded = never> = { id?: string | number | undefined }
 
 let idCounter = 0;
 export class Base {
-    id!: number | string;
+    id: number | string = 'auto' + ++idCounter;
     // getUniqueId() {
     //     return this.constructor.name + '_' + this.id;
     // }
     _treeMeta = new TreeMeta();
     _classMeta!: ClassMeta;
-    constructor() {}
-    get atoms() {
-        return this._treeMeta.atoms as Record<keyof this, { reset: () => void }>;
+    constructor() {
+        this.validateClass();
     }
-    static create<T extends typeof Base>(this: T, json?: JSONType<InstanceType<T>>, prev?: InstanceType<T>) {
-        let instance = prev as Base | undefined;
-        let classMeta = this.prototype._classMeta;
+
+    validateClass() {
+        const Class = this.constructor as typeof Base;
+        const classMeta = this._classMeta;
         if (classMeta === undefined) {
             throw new Error('This class is not belongs to any other class');
         }
         if (!classMeta.finished) {
             classMeta.finished = true;
-            const { prototype, props } = reflectClass(this);
-            setPropsGetters(this, classMeta, props);
-            setMethods(this, classMeta, prototype);
+            const { prototype, props } = reflectClass(Class);
+            setPropsGetters(Class, classMeta, props);
+            setMethods(Class, classMeta, prototype);
         }
-        return applyJsonToEntity(this, json, instance) as InstanceType<T>;
     }
 
-    toJSON() {
+    fromJSON(json: {}) {
+        const classMeta = this._classMeta;
+        // const treeMeta = prev._treeMeta;
+        if (json !== undefined) {
+            if (json['id']! == undefined) {
+                this.id = json['id'];
+            }
+            for (let i = 0; i < classMeta.fields.length; i++) {
+                const field = classMeta.fields[i];
+                if (field.skipped) continue;
+                this[field.name] = json[field.name];
+            }
+        }
+    }
+    get atoms() {
+        return this._treeMeta.atoms as Record<keyof this, { reset: () => void }>;
+    }
+    static create<T extends typeof Base>(this: T, json?: JSONType<InstanceType<T>>, parent?: Base): InstanceType<T> {
+        const Class = this;
+        let instance: Base | undefined = undefined;
+        if (parent !== undefined && json !== undefined) {
+            const rootStore = getRootStore(parent._treeMeta);
+            if (rootStore !== undefined && json.id !== undefined) {
+                instance = rootStore.instances.get(Class, json.id);
+            }
+        }
+        if (json instanceof Class) return json as InstanceType<T>;
+        if (instance === undefined) {
+            instance = new Class();
+            // console.log('new ', Class.name, instance.id);
+        }
+        if (json !== undefined) {
+            instance.fromJSON(json);
+        }
+        return instance as InstanceType<T>;
+    }
+
+    toJSON(): {} {
         const treeMeta = this._treeMeta;
         if (treeMeta.json !== undefined) return treeMeta.json;
-        const json = {};
+        const json = {id: this.id};
         const classMeta = this._classMeta;
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
@@ -56,29 +92,6 @@ export class Base {
     }
 }
 
-export function applyJsonToEntity(Class: typeof Base, json: {} | undefined, instance: Base | undefined) {
-    if (json instanceof Class) return json;
-    // const prevInTransaction = glob.inTransaction;
-    // try {
-    // glob.inTransaction = true;
-    if (instance === undefined) {
-        instance = new Class() as Base;
-        if (instance.id === undefined) {
-            instance.id = 'auto' + ++idCounter;
-        }
-    }
-    const classMeta = instance._classMeta;
-    // const treeMeta = prev._treeMeta;
-    if (json !== undefined) {
-        for (let i = 0; i < classMeta.fields.length; i++) {
-            const field = classMeta.fields[i];
-            if (field.skipped) continue;
-            instance[field.name] = json[field.name];
-        }
-    }
-    return instance;
-}
-
 export function getClassMetaOfEntity(Class: typeof Base) {
     const proto = Class.prototype as Base;
     if (!(proto instanceof Base)) {
@@ -86,9 +99,10 @@ export function getClassMetaOfEntity(Class: typeof Base) {
     }
     let classMeta = proto._classMeta;
     if (classMeta === undefined) {
-        classMeta = new ClassMeta((json, prev) => Class.create(json, prev as Base), undefined);
+        classMeta = new ClassMeta({
+            setTransformer: (parent, json) => Class.create(json, parent),
+        });
         Class.prototype._classMeta = classMeta;
-        // classMeta.fields.push(createField('id', undefined));
     }
     return classMeta;
 }

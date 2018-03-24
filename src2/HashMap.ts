@@ -11,7 +11,7 @@ function mutate(map: HashMap) {
 }
 
 export class HashMap<T = {}> extends Base implements Map<string | number, T> {
-    _classMeta = new ClassMeta(undefined, undefined);
+    _classMeta = new ClassMeta({});
 
     static factory<T>(
         elementClassMeta: ClassMeta | undefined,
@@ -72,6 +72,8 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         return keyValues;
     }
 
+    validateClass() {}
+
     get size() {
         return this.keys.length;
     }
@@ -101,7 +103,7 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         const classMeta = getClassMetaFromObj(this)!;
         let atom = this.map[key];
         const prevValue = atom === undefined ? undefined : (atom.value as T);
-        value = setTransformValue(classMeta.fields[0], value, prevValue);
+        value = setTransformValue(this, classMeta.fields[0], value, prevValue);
         if (atom == undefined) {
             atom = new AtomValue(value, 'HashMap.map.' + key);
             this.map[key] = atom;
@@ -171,5 +173,7 @@ export function hash<T>(Cls: typeof Base | ClassMeta | undefined) {
 
 export function hashType<T>(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta((json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap), undefined);
+    return new ClassMeta({
+        setTransformer: (parent, json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap),
+    });
 }

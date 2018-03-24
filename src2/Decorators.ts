@@ -64,18 +64,18 @@ export function ref<T>(Class: typeof Base) {
         addField(
             targetProto,
             prop,
-            new ClassMeta(
-                value => {
+            new ClassMeta({
+                setTransformer: (parent, value) => {
                     if (value instanceof Base) {
                         return value.id;
                     }
                     throw new Error('Value is not instance of the Base class');
                 },
-                (parent, value) => {
+                getTransformer: (parent, value) => {
                     const rootStore = getRootStoreOrThrow(parent._treeMeta);
-                    return rootStore.instances.get(Class, value as string)!;
-                }
-            )
+                    return rootStore.instances.get(Class, value as string);
+                },
+            })
         );
     };
 }
@@ -118,7 +118,7 @@ export function setProp(Class: typeof Base, field: Field) {
             }
             let atom = treeMeta.atoms[prop] as AtomValue | undefined;
             const prevValue = atom === undefined ? undefined : atom!.value;
-            value = setTransformValue(field, value, prevValue);
+            value = setTransformValue(this, field, value, prevValue);
             if (atom === undefined) {
                 atom = new AtomValue(value, Class.name + '.' + prop);
                 treeMeta.atoms[prop] = atom;

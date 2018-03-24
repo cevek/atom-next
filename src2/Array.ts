@@ -12,7 +12,7 @@ function mutate<Ret>(arr: ArrayProxy) {
 
 function transformAndAttach(arr: ArrayProxy, items: {}[]) {
     for (let i = 0; i < items.length; i++) {
-        const value = setTransformValue(arr._classMeta.fields[0], items[i], undefined);
+        const value = setTransformValue(arr, arr._classMeta.fields[0], items[i], undefined);
         items[i] = value;
         attachObject(arr, value, undefined);
     }
@@ -41,13 +41,15 @@ export class ArrayProxy<T = {}> extends Base {
         return array;
     }
 
-    _classMeta = new ClassMeta(undefined, undefined);
+    _classMeta = new ClassMeta({});
 
     _values: T[] = [];
 
     get length() {
         return this._values.length;
     }
+
+    validateClass() {}
 
     push(...items: T[]) {
         checkWeAreInAction();
@@ -113,7 +115,7 @@ export class ArrayProxy<T = {}> extends Base {
     set(idx: number, value: T) {
         const prevValue = idx < this._values.length ? this._values[idx] : undefined;
         const classMeta = getClassMetaFromObj(this)!;
-        value = setTransformValue(classMeta.fields[0], value, prevValue);
+        value = setTransformValue(this, classMeta.fields[0], value, prevValue);
         attachObject(this, value, prevValue);
         this._values[idx] = value;
         mutate(this);
@@ -177,8 +179,7 @@ export function array<T>(Cls: typeof Base | ClassMeta) {
 
 export function arrayType(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta(
-        (json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
-        undefined
-    );
+    return new ClassMeta({
+        setTransformer: (parent, json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
+    });
 }
