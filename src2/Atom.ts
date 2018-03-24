@@ -5,9 +5,17 @@ export const enum AtomState {
     MAYBE_DIRTY = 'MAYBE_DIRTY',
     DIRTY = 'DIRTY',
 }
+// make monomorphic object array
+function createEmptyArray<T>(): T[] {
+    const arr = [undefined!] as T[];
+    arr.pop();
+    return arr;
+}
 
 class Transaction {
-    changes: number[] = [];
+    changes = createEmptyArray<number>();
+    newMasters = createEmptyArray<Atom>();
+    newMastersLength = 0;
     changesLength = 0;
     constructor(public transactionId: number, public atom?: AtomCalc) {}
 }
@@ -25,6 +33,7 @@ class TransactionManager {
         this.possibleToUseAtomAsSlave(atom);
         this.current = this.stack[++this.pos];
         this.current.changesLength = atom.masters.length;
+        this.current.newMastersLength = 0;
         this.current.atom = atom;
         if (this.current.changesLength > this.current.changes.length) {
             this.current.changes[this.current.changesLength - 1] = -1;
@@ -33,6 +42,10 @@ class TransactionManager {
 
     end() {
         this.current.atom = void 0;
+        for (let i = 0; i < this.current.newMastersLength; i++) {
+            this.current.newMasters[i] = undefined!;
+        }
+        this.current.newMastersLength = 0;
         this.current = this.stack[--this.pos];
     }
 
@@ -129,28 +142,11 @@ function removeChild(atom: Atom, child: Atom) {
     }
 }
 
-function addChild(atom: Atom, atomChild: AtomCalc) {
-    if (atom.slaves === void 0) {
-        atom.slaves = [];
+// finds only atoms cause to make function monomorphic
+function indexOfAtom(arr: Atom[], length: number, val: Atom): number {
+    for (let i = length - 1; i >= 0; i--) {
+        if (arr[i] === val) return i;
     }
-    for (let i = 0; i < atom.slaves.length; i++) {
-        const child = atom.slaves[i];
-        if (atomChild === child) {
-            return i;
-        }
-    }
-    atom.slaves.push(atomChild);
-    return -1;
-}
-
-function addParent(atom: AtomCalc, atomParent: Atom) {
-    for (let i = 0; i < atom.masters.length; i += 2) {
-        const parent = atom.masters[i];
-        if (parent === atomParent) {
-            return i;
-        }
-    }
-    atom.masters.push(atomParent, atomParent.value);
     return -1;
 }
 
@@ -160,9 +156,12 @@ function processMaster(atom: Atom) {
         // if (!trxManager.possibleToUseAtomAsSlave(this)) {
         //     return;
         // }
-        const foundPos = addParent(current.atom, atom);
+        let foundPos = current.atom.masters.indexOf(atom);
         if (foundPos === -1) {
-            addChild(atom, current.atom);
+            foundPos = indexOfAtom(current.newMasters, current.newMastersLength, atom);
+        }
+        if (foundPos === -1) {
+            current.newMasters[current.newMastersLength++] = atom;
         } else {
             current.changes[foundPos] = current.transactionId;
         }
@@ -190,7 +189,7 @@ function calcIfNeeded(atom: Atom) {
     if (atom.state === AtomState.ACTUAL) return false;
     if (atom.masters === void 0 || atom.state === AtomState.DIRTY) {
         if (atom.masters === void 0) {
-            atom.masters = [];
+            atom.masters = createEmptyArray();
         }
         return calc(atom);
     }
@@ -215,15 +214,23 @@ function calcIfNeeded(atom: Atom) {
 
 function processTransaction(atom: AtomCalc) {
     let shift = 0;
-    for (let i = 0; i < trxManager.current.changesLength; i += 2) {
+    const { current } = trxManager;
+    for (let i = 0; i < current.changesLength; i += 2) {
         const master = atom.masters[i - shift] as Atom;
-        if (trxManager.current.changes[i] !== trxManager.current.transactionId) {
+        if (current.changes[i] !== current.transactionId) {
             removeChild(master, atom);
             atom.masters.splice(i - shift, 2);
             shift += 2;
         } else {
             atom.masters[i - shift + 1] = master.value;
         }
+    }
+    for (let i = 0; i < current.newMastersLength; i++) {
+        const master = current.newMasters[i];
+        if (master.slaves === undefined) master.slaves = [atom];
+        else master.slaves.push(atom);
+        if (atom.masters === undefined) atom.masters = [master, master.value];
+        else atom.masters.push(master, master.value);
     }
 }
 
