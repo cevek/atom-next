@@ -18,6 +18,23 @@ class Transaction {
     newMastersLength = 0;
     changesLength = 0;
     constructor(public transactionId: number, public atom?: AtomCalc) {}
+
+    addMaster(atom: Atom) {
+        if (this.atom !== void 0) {
+            // if (!trxManager.possibleToUseAtomAsSlave(this)) {
+            //     return;
+            // }
+            const foundPos = this.atom.masters.indexOf(atom);
+            if (foundPos === -1) {
+                for (let i = this.newMastersLength - 1; i >= 0; i--) {
+                    if (this.newMasters[i] === atom) return;
+                }
+                this.newMasters[this.newMastersLength++] = atom;
+            } else {
+                this.changes[foundPos] = this.transactionId;
+            }
+        }
+    }
 }
 
 class TransactionManager {
@@ -142,32 +159,6 @@ function removeChild(atom: Atom, child: Atom) {
     }
 }
 
-// finds only atoms cause to make function monomorphic
-function indexOfAtom(arr: Atom[], length: number, val: Atom): number {
-    for (let i = length - 1; i >= 0; i--) {
-        if (arr[i] === val) return i;
-    }
-    return -1;
-}
-
-function processMaster(atom: Atom) {
-    const { current } = trxManager;
-    if (current.atom !== void 0) {
-        // if (!trxManager.possibleToUseAtomAsSlave(this)) {
-        //     return;
-        // }
-        let foundPos = current.atom.masters.indexOf(atom);
-        if (foundPos === -1) {
-            foundPos = indexOfAtom(current.newMasters, current.newMastersLength, atom);
-        }
-        if (foundPos === -1) {
-            current.newMasters[current.newMastersLength++] = atom;
-        } else {
-            current.changes[foundPos] = current.transactionId;
-        }
-    }
-}
-
 function calc(atom: AtomCalc) {
     trxManager.start(atom);
     // console.log('precalc', atom.name, atom.value);
@@ -262,7 +253,7 @@ function getCalc<T>(atom: AtomCalc<T>) {
     if (calcIfNeeded(atom)) {
         setChildrenMaybeDirtyState(atom);
     }
-    processMaster(atom);
+    trxManager.current.addMaster(atom);
     return atom.value;
 }
 
@@ -327,7 +318,7 @@ export class AtomValue<T = {}> {
     }
 
     get() {
-        processMaster(this);
+        trxManager.current.addMaster(this);
         return this.value;
     }
 
