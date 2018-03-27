@@ -12,8 +12,14 @@ export function createActionFactory<Fun extends Function>(type: string, reducer:
             glob.inTransaction = true;
             try {
                 const rootStore = getRootStoreOrThrow(this._treeMeta);
+                const beforeJson = rootStore.toJSON();
                 const res = reducer.call(this, ...args);
-                rootStore.dispatch(type, this, {});
+                const afterJson = rootStore.toJSON();
+                if (beforeJson !== afterJson) {
+                    rootStore.dispatch(type, this, {});
+                } else {
+                    console.error('Action ' + type + " doesn't change anything");
+                }
                 return res;
             } finally {
                 glob.inTransaction = prevInTransaction;

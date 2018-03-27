@@ -1,20 +1,21 @@
 import { createField, Field } from './Field';
 import { Base } from './Entity';
+import { RootStore } from './RootStore';
 
-export interface Reducer {
+export interface Action {
     name: string;
-    reducer: Function;
+    fun: Function;
 }
 
 export class ClassMeta {
     fields: Field[];
-    reducers: Reducer[];
+    actions: Action[];
     finished: boolean;
-    setTransformer: ((parent: Base, json: {}, prevValue: {} | undefined) => {}) | undefined;
-    getTransformer: ((parent: Base, value: {}) => {} | undefined) | undefined;
-    constructor({ getTransformer, setTransformer, reducers = [], finished = false, fields = [] }: Partial<ClassMeta>) {
+    setTransformer: ((rootStore: RootStore | undefined, json: {}, prevValue: {} | undefined) => {}) | undefined;
+    getTransformer: ((rootStore: RootStore | undefined, value: {}) => {} | undefined) | undefined;
+    constructor({ getTransformer, setTransformer, actions = [], finished = false, fields = [] }: Partial<ClassMeta>) {
         this.fields = fields;
-        this.reducers = reducers;
+        this.actions = actions;
         this.finished = finished;
         this.setTransformer = setTransformer;
         this.getTransformer = getTransformer;
@@ -36,17 +37,22 @@ export function getClassMetaFromObj(obj: {} | undefined) {
     }
 }
 
-export function setTransformValue<T>(parent: Base, valueField: Field, value: T, prevValue: T | undefined): T {
+export function setTransformValue<T>(
+    rootStore: RootStore | undefined,
+    valueField: Field,
+    value: T,
+    prevValue: T | undefined
+): T {
     if (value === null || typeof value !== 'object') return value;
     if (valueField.classMeta !== undefined && valueField.classMeta.setTransformer !== undefined) {
-        return valueField.classMeta.setTransformer(parent, value, prevValue) as T;
+        return valueField.classMeta.setTransformer(rootStore, value, prevValue) as T;
     }
     return value;
 }
 
-export function getTransformValue<T>(parent: Base, valueField: Field, value: T): T {
+export function getTransformValue<T>(rootStore: RootStore | undefined, valueField: Field, value: T): T {
     if (valueField.classMeta !== undefined && valueField.classMeta.getTransformer !== undefined) {
-        return valueField.classMeta.getTransformer(parent, value) as T;
+        return valueField.classMeta.getTransformer(rootStore, value) as T;
     }
     return value;
 }

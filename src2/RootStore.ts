@@ -1,10 +1,11 @@
 import { toJSON } from './Utils';
-import { Base, getClassMetaOfEntity, JSONType } from './Entity';
+import { Base } from './Entity';
 import { glob } from './Glob';
 import { run } from './Atom';
 import { hash, HashMap, hashType } from './HashMap';
 import { attachObject, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
 import { skip } from './Decorators';
+import { getClassMetaOfEntity, JSONType, PartialJSONType } from './EntityUtils';
 
 export type ReduxStore<T> = {
     getState(): T;
@@ -20,7 +21,14 @@ export interface Action {
 }
 
 interface RootStoreOptions {
-    idKey?: string;
+    // idKey?: string;
+    remotedev?: {
+        extractState(msg: {}): {};
+        connectViaExtension(): {
+            subscribe(cb: (msg: {}) => void): void;
+            send(action: {}, state: {}): void;
+        };
+    };
 }
 
 class LocalRootStore {
@@ -67,6 +75,9 @@ class LocalRootStore {
     reset() {
         this.tempInstances.clear();
     }
+    toJSON() {
+        return {};
+    }
 }
 export class RootStore extends Base {
     @hash(hashType())
@@ -76,21 +87,28 @@ export class RootStore extends Base {
 
     @skip private options!: RootStoreOptions;
 
-    constructor() {
+    constructor(options: RootStoreOptions = {}) {
         super();
-        // this.options = options;
+        this.options = options;
         getObjTreeMeta(this)!.parent = (this as {}) as TreeMeta;
+        if (options.remotedev !== undefined) {
+            const remoteDev = options.remotedev;
+            const conn = remoteDev.connectViaExtension();
+            conn.subscribe(message => this.setState(remoteDev.extractState(message) as JSONType<this>));
+            this.subscribe((action, state) => conn.send(action, state));
+        }
     }
 
     static create<T extends typeof Base>(
         this: T,
-        json?: JSONType<InstanceType<T>>
+        json?: PartialJSONType<InstanceType<T>>
         // options: RootStoreOptions = {}
     ): InstanceType<T> {
         // instance.options = options;
-        return super.create.call(this, json);
+        return super.create(json) as InstanceType<T>;
     }
 
+    /** @internal */
     @skip instances = new Instances();
 
     @skip private subscribers: ((action: Action, state: {}) => void)[] = [];
@@ -105,7 +123,7 @@ export class RootStore extends Base {
     }
 
     @skip
-    setState(state: {}) {
+    setState(state: JSONType<this>) {
         if (glob.inTransaction) {
             return;
         }
@@ -135,6 +153,7 @@ export class RootStore extends Base {
         return this._tempComponentStore.getInstance(Class, id, instance) as InstanceType<T>;
     }
 
+    /** @internal */
     @skip
     saveInstance<T>(instance: Base) {
         const Class = instance.constructor as typeof Base;
@@ -161,7 +180,7 @@ export class RootStore extends Base {
     //     //     return newState;
     //     // }
     // };
-
+    /** @internal */
     @skip
     dispatch(type: string, thisArg: Base, payload: {}) {
         const action: Action = { type: type, path: thisArg.id, payload };
@@ -172,7 +191,7 @@ export class RootStore extends Base {
     }
 }
 
-class Instances {
+export class Instances {
     private instMap = new Map<string, Map<string | number, Base>>();
 
     add(instance: Base) {

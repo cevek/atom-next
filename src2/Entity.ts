@@ -1,29 +1,27 @@
-import { getRootStore, TreeMeta } from './TreeMeta';
+import { getRootStore, getRootStoreOrThrow, TreeMeta } from './TreeMeta';
 import { ClassMeta } from './ClassMeta';
-import { reflectClass, ReflectClassResult } from './ReflectClass';
-import { createActionFactory } from './CreateActionFactory';
 import { toJSON } from './Utils';
-import { addField, setCalcProp, setProp } from './Decorators';
 import { AtomValue } from './Atom';
-
-type Methods<T> = { [P in keyof T]: T[P] extends Function ? P : never }[keyof T];
-export type JSONType<T, Excluded = never> = { id?: string | number | undefined } & {
-    [P in Exclude<keyof T, Methods<T> | '_treeMeta' | '_classMeta' | 'atoms' | 'id' | Excluded>]: JSONType<T[P]>
-};
+import { bindActions, PartialJSONType, setMethods, setPropsGetters } from './EntityUtils';
+import { RootStore } from './RootStore';
+import { reflectClass } from './ReflectClass';
 
 let idCounter = 0;
 export class Base {
-    id: number | string = 'auto' + ++idCounter;
-    // getUniqueId() {
-    //     return this.constructor.name + '_' + this.id;
-    // }
+    /** @internal */
     _treeMeta = new TreeMeta();
+    /** @internal */
     _classMeta!: ClassMeta;
+    id: number | string = 'auto' + ++idCounter;
+    getUniqueId() {
+        return this.constructor.name + '_' + this.id;
+    }
     constructor() {
         this.validateClass();
+        bindActions(this);
     }
 
-    validateClass() {
+    protected validateClass() {
         const Class = this.constructor as typeof Base;
         const classMeta = this._classMeta;
         if (classMeta === undefined) {
@@ -37,16 +35,28 @@ export class Base {
         }
     }
 
-    fromJSON(json: {}) {
+    getById(Class: typeof Base, id: string | number) {
+        const rootStore = getRootStoreOrThrow(this._treeMeta);
+        return rootStore.instances.get(Class, id);
+    }
+
+    getByIdOrThrow(Class: typeof Base, id: string | number) {
+        const rootStore = getRootStoreOrThrow(this._treeMeta);
+        return rootStore.instances.getOrThrow(Class, id);
+    }
+
+    fromJSON(json: PartialJSONType<this>) {
         const classMeta = this._classMeta;
         // const treeMeta = prev._treeMeta;
         if (json !== undefined) {
-            if (json['id']! == undefined) {
-                this.id = json['id'];
+            const id = json['id'];
+            if (id !== undefined) {
+                this.id = id;
             }
             for (let i = 0; i < classMeta.fields.length; i++) {
                 const field = classMeta.fields[i];
                 if (field.skipped) continue;
+                if (!json.hasOwnProperty(field.name)) continue;
                 this[field.name] = json[field.name];
             }
         }
@@ -54,14 +64,15 @@ export class Base {
     get atoms() {
         return this._treeMeta.atoms as Record<keyof this, { reset: () => void }>;
     }
-    static create<T extends typeof Base>(this: T, json?: JSONType<InstanceType<T>>, parent?: Base): InstanceType<T> {
+    static create<T extends typeof Base>(
+        this: T,
+        json?: PartialJSONType<InstanceType<T>>,
+        rootStore?: RootStore
+    ): InstanceType<T> {
         const Class = this;
         let instance: Base | undefined = undefined;
-        if (parent !== undefined && json !== undefined) {
-            const rootStore = getRootStore(parent._treeMeta);
-            if (rootStore !== undefined && json.id !== undefined) {
-                instance = rootStore.instances.get(Class, json.id);
-            }
+        if (rootStore !== undefined && json !== undefined && json.id !== undefined) {
+            instance = rootStore.instances.get(Class, json.id);
         }
         if (json instanceof Class) return json as InstanceType<T>;
         if (instance === undefined) {
@@ -77,7 +88,7 @@ export class Base {
     toJSON(): {} {
         const treeMeta = this._treeMeta;
         if (treeMeta.json !== undefined) return treeMeta.json;
-        const json = {id: this.id};
+        const json = { id: this.id };
         const classMeta = this._classMeta;
         for (let i = 0; i < classMeta.fields.length; i++) {
             const field = classMeta.fields[i];
@@ -89,47 +100,5 @@ export class Base {
         }
         treeMeta.json = json;
         return json;
-    }
-}
-
-export function getClassMetaOfEntity(Class: typeof Base) {
-    const proto = Class.prototype as Base;
-    if (!(proto instanceof Base)) {
-        throw new Error('Class ' + Class.name + ' is not extended Base class');
-    }
-    let classMeta = proto._classMeta;
-    if (classMeta === undefined) {
-        classMeta = new ClassMeta({
-            setTransformer: (parent, json) => Class.create(json, parent),
-        });
-        Class.prototype._classMeta = classMeta;
-    }
-    return classMeta;
-}
-
-function setPropsGetters(Target: typeof Base, classMeta: ClassMeta, props: string[]) {
-    for (let i = 0; i < props.length; i++) {
-        const prop = props[i];
-        addField(Target.prototype, prop, undefined);
-    }
-    for (let i = 0; i < classMeta.fields.length; i++) {
-        const field = classMeta.fields[i];
-        setProp(Target, field);
-    }
-}
-
-function setMethods(Target: typeof Base, classMeta: ClassMeta, prototype: ReflectClassResult['prototype']) {
-    for (let i = 0; i < prototype.length; i++) {
-        const item = prototype[i];
-        const prop = item.name;
-        const field = classMeta.fields.filter(field => field.name === prop).pop();
-        if (field !== undefined && field.skipped) continue;
-        if (item.type === 'getter' && item.value) {
-            setCalcProp(Target, prop, item.value as () => {});
-        } else if (item.type === 'method') {
-            const reducerName = Target.name + '.' + prop;
-            classMeta.reducers.push({ name: reducerName, reducer: item.value });
-            Target.prototype[prop] = createActionFactory(reducerName, item.value);
-        }
     }
 }

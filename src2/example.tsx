@@ -1,14 +1,12 @@
 import { RootStore } from './RootStore';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import { ref, sub } from './Decorators';
+import { ref } from './Decorators';
 import { connect } from './Component';
 import { array } from './Array';
 import { Provider } from './Provider';
 import { Base } from './Entity';
-
-const { connectViaExtension, extractState } = require('remotedev');
-const remotedev = connectViaExtension();
+import { sub } from './EntityUtils';
 
 const w: any = window;
 class Async<T> {
@@ -89,14 +87,7 @@ class MyStore extends RootStore {
 
 function run() {
     //{ todoStore: { todos: [], user: {}, favs: undefined, unfinishedCount: 0 } }
-    const store = MyStore.create();
-    remotedev.subscribe((message: any) => {
-        const state = extractState(message);
-        store.setState(state);
-    });
-    store.subscribe((action, state) => {
-        remotedev.send(action, state);
-    });
+    const store = new MyStore({ remotedev: require('remotedev') });
     w.rootStore = store;
     ReactDOM.render(
         <Provider treeStore={store}>

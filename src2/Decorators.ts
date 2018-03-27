@@ -1,10 +1,11 @@
-import { attachObject, clearParentsJson, getRootStoreOrThrow, TreeMeta } from './TreeMeta';
-import { Base, getClassMetaOfEntity } from './Entity';
+import { attachObject, clearParentsJson, getRootStore, TreeMeta } from './TreeMeta';
 import { ClassMeta, getTransformValue, setTransformValue } from './ClassMeta';
 import { createField, Field } from './Field';
 import { KeyedAtomCalc } from './KeyedAtomCalc';
 import { Atom, AtomCalc, AtomValue } from './Atom';
 import { checkWeAreInAction } from './Utils';
+import { Base } from './Entity';
+import { addField } from './EntityUtils';
 
 export function prop(targetProto: Base, prop: string) {
     const field = createField(prop, undefined);
@@ -19,25 +20,20 @@ export function calc(targetProto: Base, prop: string) {
     setCalcProp(targetProto.constructor as typeof Base, prop, method);
 }
 
-export function sub<T>(Class: typeof Base) {
-    return function<Prop extends string, Trg extends Base & Record<Prop, T | undefined>>(targetProto: Trg, prop: Prop) {
-        addField(targetProto, prop, getClassMetaOfEntity(Class));
-    };
-}
 // noinspection JSUnusedLocalSymbols
-export function key<Prop extends string, Host extends Base & Record<Prop, (key: number) => {} | undefined>>(
+export function get<Prop extends string, Host extends Base & Record<Prop, (key: {}) => {} | undefined>>(
     target: Host,
     prop: Prop
 ): any;
 // noinspection JSUnusedLocalSymbols
-export function key<Prop extends string, Host extends Base & Record<Prop, (key: string) => {} | undefined>>(
+export function get<Prop extends string, Host extends Base & Record<Prop, (key: {}) => {} | undefined>>(
     target: Host,
     prop: Prop
 ): any;
-export function key(targetProto: Base, prop: string) {
+export function get(targetProto: Base, prop: string) {
     const fn = targetProto[prop];
     Object.defineProperty(targetProto, prop, {
-        value: function(this: Base, key: string | number | undefined) {
+        value: function(this: Base, key: {}) {
             let treeMeta = this._treeMeta;
             if (treeMeta === undefined) {
                 treeMeta = this._treeMeta = new TreeMeta();
@@ -61,40 +57,24 @@ export function ref<T>(Class: typeof Base) {
         targetProto: Trg,
         prop: Prop
     ) {
-        addField(
-            targetProto,
-            prop,
-            new ClassMeta({
-                setTransformer: (parent, value) => {
-                    if (value instanceof Base) {
-                        return value.id;
-                    }
-                    throw new Error('Value is not instance of the Base class');
-                },
-                getTransformer: (parent, value) => {
-                    const rootStore = getRootStoreOrThrow(parent._treeMeta);
-                    return rootStore.instances.get(Class, value as string);
-                },
-            })
-        );
+        addField(targetProto, prop, refType(Class));
     };
 }
 
-export function buildElementClassMeta(Class: typeof Base | ClassMeta | undefined) {
-    return Class instanceof ClassMeta ? Class : Class === undefined ? undefined : getClassMetaOfEntity(Class);
-}
-export function addField(targetProto: Base, prop: string, propClassMeta: ClassMeta | undefined) {
-    const Target = targetProto.constructor as typeof Base;
-    const hostClassMeta = getClassMetaOfEntity(Target);
-    let field = hostClassMeta.fields.filter(field => field.name === prop).pop();
-    if (field === undefined) {
-        field = createField(prop, undefined);
-        hostClassMeta.fields.push(field);
-    }
-    if (propClassMeta !== undefined) {
-        field.classMeta = propClassMeta;
-    }
-    return field;
+export function refType(Class: typeof Base) {
+    return new ClassMeta({
+        setTransformer: (rootStore, value) => {
+            if (value instanceof Base) {
+                return value.id;
+            }
+            throw new Error('Value is not instance of the Base class');
+        },
+        getTransformer: (rootStore, value) => {
+            if (rootStore !== undefined) {
+                return rootStore.instances.get(Class, value as string);
+            }
+        },
+    });
 }
 
 export function setProp(Class: typeof Base, field: Field) {
@@ -104,30 +84,30 @@ export function setProp(Class: typeof Base, field: Field) {
     Object.defineProperty(Class.prototype, prop, {
         enumerable: true,
         get: function(this: Base) {
-            let treeMeta = this._treeMeta;
+            const treeMeta = this._treeMeta;
             let atom = treeMeta.atoms[prop] as AtomValue;
             if (atom === undefined) {
                 return undefined;
             }
-            return getTransformValue(this, field, atom.get());
+            return getTransformValue(getRootStore(treeMeta), field, atom.get());
         },
         set: function(this: Base, value: {}) {
-            let treeMeta = this._treeMeta;
-            if (typeof treeMeta === 'undefined') {
-                treeMeta = this._treeMeta = new TreeMeta();
-            }
+            const treeMeta = this._treeMeta;
             let atom = treeMeta.atoms[prop] as AtomValue | undefined;
             const prevValue = atom === undefined ? undefined : atom!.value;
-            value = setTransformValue(this, field, value, prevValue);
+            value = setTransformValue(getRootStore(treeMeta), field, value, prevValue);
             if (atom === undefined) {
                 atom = new AtomValue(value, Class.name + '.' + prop);
                 treeMeta.atoms[prop] = atom;
             } else {
-                checkWeAreInAction();
-                atom.set(value);
+                if (atom.set(value)) {
+                    checkWeAreInAction();
+                }
             }
-            attachObject(this, value, prevValue);
-            clearParentsJson(treeMeta);
+            if (value !== prevValue) {
+                attachObject(this, value, prevValue);
+                clearParentsJson(treeMeta);
+            }
         },
     });
 }

@@ -136,7 +136,7 @@ function actualize(atom: Atom) {
     }
 }
 
-function setChildrenMaybeDirtyState(atom: Atom) {
+function setChildrenMaybeDirtyState(atom: Atom): boolean {
     if (atom.slaves !== void 0) {
         for (let i = 0; i < atom.slaves.length; i++) {
             const child = atom.slaves[i];
@@ -145,7 +145,9 @@ function setChildrenMaybeDirtyState(atom: Atom) {
                 setChildrenMaybeDirtyState(child);
             }
         }
+        return true;
     }
+    return false;
 }
 
 function removeChild(atom: Atom, child: Atom) {
@@ -260,7 +262,7 @@ function getCalc<T>(atom: AtomCalc<T>) {
 function setValue(atom: AtomValue, value: {}) {
     atom.value = value;
     updateList.list[updateList.pos++] = atom;
-    setChildrenMaybeDirtyState(atom);
+    return setChildrenMaybeDirtyState(atom);
 }
 
 export type Atom<T = {}> = AtomCalc<T> | AtomValue<T>;
@@ -309,10 +311,9 @@ export class AtomValue<T = {}> {
         this.value = value;
     }
 
-    set(value: T) {
+    set(value: T): boolean {
         if (value !== this.value) {
-            setValue(this, value);
-            return true;
+            return setValue(this, value);
         }
         return false;
     }

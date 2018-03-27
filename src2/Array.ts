@@ -1,9 +1,10 @@
-import { attachObject, clearParentsJson, detachObject, getObjTreeMeta } from './TreeMeta';
+import { attachObject, clearParentsJson, detachObject, getObjTreeMeta, getRootStore } from './TreeMeta';
 import { checkWeAreInAction, toJSON } from './Utils';
 import { ClassMeta, getClassMetaFromObj, getTransformValue, setTransformValue } from './ClassMeta';
-import { addField, buildElementClassMeta, prop } from './Decorators';
 import { createField } from './Field';
 import { Base } from './Entity';
+import { prop } from './Decorators';
+import { addField, buildElementClassMeta } from './EntityUtils';
 
 function mutate<Ret>(arr: ArrayProxy) {
     arr._version++;
@@ -11,8 +12,9 @@ function mutate<Ret>(arr: ArrayProxy) {
 }
 
 function transformAndAttach(arr: ArrayProxy, items: {}[]) {
+    const rootStore = getRootStore(arr._treeMeta);
     for (let i = 0; i < items.length; i++) {
-        const value = setTransformValue(arr, arr._classMeta.fields[0], items[i], undefined);
+        const value = setTransformValue(rootStore, arr._classMeta.fields[0], items[i], undefined);
         items[i] = value;
         attachObject(arr, value, undefined);
     }
@@ -25,7 +27,7 @@ function checkVersion(arr: ArrayProxy) {
 
 export class ArrayProxy<T = {}> extends Base {
     @prop _version = 0;
-
+    protected validateClass() {}
     static factory(elementClassMeta: ClassMeta | undefined, json: ArrayProxy | {}[], array: ArrayProxy | undefined) {
         if (json instanceof ArrayProxy) return json;
         if (array === undefined) {
@@ -49,8 +51,6 @@ export class ArrayProxy<T = {}> extends Base {
         return this._values.length;
     }
 
-    validateClass() {}
-
     push(...items: T[]) {
         checkWeAreInAction();
         transformAndAttach(this, items);
@@ -71,14 +71,14 @@ export class ArrayProxy<T = {}> extends Base {
         const ret = this._values.pop();
         detachObject(ret);
         mutate(this);
-        return getTransformValue(this, this._classMeta.fields[0], ret);
+        return getTransformValue(getRootStore(this._treeMeta), this._classMeta.fields[0], ret);
     }
     shift() {
         checkWeAreInAction();
         const ret = this._values.shift();
         detachObject(ret);
         mutate(this);
-        return getTransformValue(this, this._classMeta.fields[0], ret);
+        return getTransformValue(getRootStore(this._treeMeta), this._classMeta.fields[0], ret);
     }
     reverse() {
         checkWeAreInAction();
@@ -90,10 +90,11 @@ export class ArrayProxy<T = {}> extends Base {
         const field = this._classMeta.fields[0];
         checkWeAreInAction();
         const ret = this._values.splice(start, deleteCount, ...items);
+        const rootStore = getRootStore(this._treeMeta);
         for (let i = 0; i < ret.length; i++) {
             const value = ret[i];
             detachObject(value);
-            ret[i] = getTransformValue(this, field, value);
+            ret[i] = getTransformValue(rootStore, field, value);
         }
         transformAndAttach(this, items);
         mutate(this);
@@ -109,13 +110,13 @@ export class ArrayProxy<T = {}> extends Base {
 
     get(idx: number) {
         checkVersion(this);
-        return getTransformValue(this, this._classMeta.fields[0], this._values[idx]);
+        return getTransformValue(getRootStore(this._treeMeta), this._classMeta.fields[0], this._values[idx]);
     }
 
     set(idx: number, value: T) {
         const prevValue = idx < this._values.length ? this._values[idx] : undefined;
         const classMeta = getClassMetaFromObj(this)!;
-        value = setTransformValue(this, classMeta.fields[0], value, prevValue);
+        value = setTransformValue(getRootStore(this._treeMeta), classMeta.fields[0], value, prevValue);
         attachObject(this, value, prevValue);
         this._values[idx] = value;
         mutate(this);
@@ -135,6 +136,7 @@ export class ArrayProxy<T = {}> extends Base {
         return this._values[Symbol.iterator]();
     }
 }
+ArrayProxy.prototype._classMeta = new ClassMeta({});
 
 const immutableMethods = [
     'toString',
@@ -159,9 +161,10 @@ for (let i = 0; i < immutableMethods.length; i++) {
         checkVersion(this);
         const field = this._classMeta.fields[0];
         let values = this._values;
+        const rootStore = getRootStore(this._treeMeta);
         if (field.classMeta !== undefined && field.classMeta.getTransformer !== undefined) {
             for (let j = 0; j < values.length; j++) {
-                values[j] = getTransformValue(this, field, values[j]);
+                values[j] = getTransformValue(rootStore, field, values[j]);
             }
         }
         return fn.apply(values, arguments);
@@ -180,6 +183,6 @@ export function array<T>(Cls: typeof Base | ClassMeta) {
 export function arrayType(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta({
-        setTransformer: (parent, json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
+        setTransformer: (rootStore, json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
     });
 }
