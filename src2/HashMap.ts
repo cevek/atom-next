@@ -12,6 +12,7 @@ function mutate(map: HashMap) {
 }
 
 export class HashMap<T = {}> extends Base implements Map<string | number, T> {
+    /** @internal */
     _classMeta = new ClassMeta({});
 
     static factory<T>(
@@ -33,11 +34,11 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         }
         return map;
     }
-
+    /** @internal */
     protected validateClass() {}
-
+    /** @internal */
     @prop private map: { [key: string]: AtomValue<T> } = {};
-
+    /** @internal */
     @calc
     private get _keys() {
         const keys: string[] = [];
@@ -48,7 +49,7 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         }
         return keys;
     }
-
+    /** @internal */
     @calc
     private get _values() {
         const keys = this._keys;
@@ -62,7 +63,7 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
         }
         return values;
     }
-
+    /** @internal */
     @calc
     private get _keyValues() {
         const keys = this.keys;

@@ -1,5 +1,4 @@
 import { ErrBox, trxManager } from './Atom';
-import { glob } from './Glob';
 
 export function fromPromise<T>(promise: Promise<T>): T {
     if (trxManager.current.atom === undefined) {

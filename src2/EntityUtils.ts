@@ -5,6 +5,7 @@ import { createField, Field } from './Field';
 import { ReflectClassResult } from './ReflectClass';
 import { createActionFactory } from './CreateActionFactory';
 
+/** @internal */
 export function getClassMetaOfEntity(Class: typeof Base) {
     const proto = Class.prototype as Base;
     if (!(proto instanceof Base)) {
@@ -19,7 +20,7 @@ export function getClassMetaOfEntity(Class: typeof Base) {
     }
     return classMeta;
 }
-
+/** @internal */
 export function setPropsGetters(Target: typeof Base, classMeta: ClassMeta, props: string[]) {
     for (let i = 0; i < props.length; i++) {
         const prop = props[i];
@@ -30,7 +31,7 @@ export function setPropsGetters(Target: typeof Base, classMeta: ClassMeta, props
         setProp(Target, field);
     }
 }
-
+/** @internal */
 export function setMethods(Target: typeof Base, classMeta: ClassMeta, prototype: ReflectClassResult['prototype']) {
     for (let i = 0; i < prototype.length; i++) {
         const item = prototype[i];
@@ -52,11 +53,11 @@ export function sub<T>(Class: typeof Base) {
         addField(targetProto, prop, getClassMetaOfEntity(Class));
     };
 }
-
+/** @internal */
 export function buildElementClassMeta(Class: typeof Base | ClassMeta | undefined) {
     return Class instanceof ClassMeta ? Class : Class === undefined ? undefined : getClassMetaOfEntity(Class);
 }
-
+/** @internal */
 export function addField(targetProto: Base, prop: string, propClassMeta: ClassMeta | undefined): Field {
     const Target = targetProto.constructor as typeof Base;
     const hostClassMeta = getClassMetaOfEntity(Target);
@@ -70,7 +71,7 @@ export function addField(targetProto: Base, prop: string, propClassMeta: ClassMe
     }
     return field;
 }
-
+/** @internal */
 export type Methods<T> = { [P in keyof T]: T[P] extends Function ? P : never }[keyof T];
 export type JSONType<T> = T extends object
     ? { id?: string | number | undefined } & {
@@ -83,7 +84,7 @@ export type PartialJSONType<T> = T extends object
       }
     : T;
 // export type JSONTypeFromClass<T extends new () => {}, Excluded = never> = JSONType<InstanceType<T>, Excluded>;
-
+/** @internal */
 export function bindActions(instance: Base) {
     const classMeta = instance._classMeta;
     for (let i = 0; i < classMeta.actions.length; i++) {

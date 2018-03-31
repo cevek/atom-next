@@ -26,7 +26,8 @@ function checkVersion(arr: ArrayProxy) {
 }
 
 export class ArrayProxy<T = {}> extends Base {
-    @prop _version = 0;
+    /** @internal */ @prop _version = 0;
+    /** @internal */
     protected validateClass() {}
     static factory(elementClassMeta: ClassMeta | undefined, json: ArrayProxy | {}[], array: ArrayProxy | undefined) {
         if (json instanceof ArrayProxy) return json;
@@ -42,9 +43,10 @@ export class ArrayProxy<T = {}> extends Base {
         }
         return array;
     }
-
+    /** @internal */
     _classMeta = new ClassMeta({});
 
+    /** @internal */
     _values: T[] = [];
 
     get length() {
@@ -183,6 +185,7 @@ export function array<T>(Cls: typeof Base | ClassMeta) {
 export function arrayType(Class?: typeof Base | ClassMeta) {
     const elementClassMeta = buildElementClassMeta(Class);
     return new ClassMeta({
-        setTransformer: (rootStore, json, prev) => ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
+        setTransformer: (rootStore, json, prev) =>
+            ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
     });
 }

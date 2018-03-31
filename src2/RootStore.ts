@@ -7,6 +7,7 @@ import { attachObject, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta
 import { skip } from './Decorators';
 import { getClassMetaOfEntity, JSONType, PartialJSONType } from './EntityUtils';
 
+/** @internal */
 export type ReduxStore<T> = {
     getState(): T;
     subscribe(callback: () => void): () => void;
@@ -14,13 +15,14 @@ export type ReduxStore<T> = {
     dispatch(action: Action): void;
 };
 
+/** @internal */
 export interface Action {
     type: string;
     path?: string | number;
     payload?: {};
 }
 
-interface RootStoreOptions {
+export interface RootStoreOptions {
     // idKey?: string;
     remotedev?: {
         extractState(msg: {}): {};
@@ -79,12 +81,14 @@ class LocalRootStore {
         return {};
     }
 }
+
 export class RootStore extends Base {
+    /** @internal */
     @hash(hashType())
     private instanceMap = new Map<string, Map<string | number, Base>>();
-
+    /** @internal */
     @skip private _tempComponentStore = new LocalRootStore(this);
-
+    /** @internal */
     @skip private options!: RootStoreOptions;
 
     constructor(options: RootStoreOptions = {}) {
@@ -110,7 +114,7 @@ export class RootStore extends Base {
 
     /** @internal */
     @skip instances = new Instances();
-
+    /** @internal */
     @skip private subscribers: ((action: Action, state: {}) => void)[] = [];
     @skip
     subscribe(callback: (action: Action, state: {}) => void) {
@@ -190,7 +194,7 @@ export class RootStore extends Base {
         }
     }
 }
-
+/** @internal */
 export class Instances {
     private instMap = new Map<string, Map<string | number, Base>>();
 

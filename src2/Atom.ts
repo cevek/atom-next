@@ -1,11 +1,13 @@
 import { toJSON } from './Utils';
 
+/** @internal */
 export const enum AtomState {
     ACTUAL = 'ACTUAL',
     MAYBE_DIRTY = 'MAYBE_DIRTY',
     DIRTY = 'DIRTY',
 }
 
+/** @internal */
 export class ErrBox {
     constructor(public error: {}) {}
 }
@@ -17,7 +19,8 @@ function createEmptyArray<T>(): T[] {
     return arr;
 }
 
-class Transaction {
+/** @internal */
+export class Transaction {
     changes = createEmptyArray<number>();
     newMasters = createEmptyArray<Atom>();
     newMastersLength = 0;
@@ -42,7 +45,8 @@ class Transaction {
     }
 }
 
-class TransactionManager {
+/** @internal */
+export class TransactionManager {
     private transactionIdIdx = 0;
     current = new Transaction(this.transactionIdIdx++, undefined);
     private stack: Transaction[] = [this.current];
@@ -90,6 +94,7 @@ class TransactionManager {
     }
 }
 
+/** @internal */
 export const trxManager = new TransactionManager();
 
 const updateList = { list: [] as Atom[], pos: 0 };
@@ -278,11 +283,16 @@ export type Atom<T = {}> = AtomCalc<T> | AtomValue<T>;
 
 let id = 0;
 export class AtomCalc<T = {}> {
+    /** @internal */
     slaves?: AtomCalc[] = void 0;
+    /** @internal */
     masters: (Atom | {})[] = undefined!;
+    /** @internal */
     owner: {} | undefined;
+    /** @internal */
     calcFun: () => T;
     value: T = undefined!;
+    /** @internal */
     state = AtomState.DIRTY;
 
     constructor(owner: {} | undefined, calcFun: () => T, public name: string) {
@@ -319,9 +329,11 @@ export class AtomCalc<T = {}> {
 }
 
 export class AtomValue<T = {}> {
+    /** @internal */
     slaves?: AtomCalc[] = void 0;
     value: T;
     // createdInTransaction = trxManager.current.transactionId;
+    /** @internal */
     state!: AtomState.ACTUAL;
 
     constructor(value: T, public name: string) {

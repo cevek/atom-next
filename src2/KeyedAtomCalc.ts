@@ -1,5 +1,6 @@
 import { AtomCalc } from './Atom';
 
+/** @internal */
 export class KeyedAtomCalc<K = {}, T = {} | undefined> {
     protected cache = new Map<K, AtomCalc<T>>();
     constructor(protected thisArg: {}, protected calcFun: (key: string | number) => T) {}

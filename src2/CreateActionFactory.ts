@@ -3,6 +3,7 @@ import { getRootStoreOrThrow } from './TreeMeta';
 import { Base } from './Entity';
 import { run } from './Atom';
 
+/** @internal */
 export function createActionFactory<Fun extends Function>(type: string, reducer: Fun): Fun {
     return (function(this: Base, ...args: any[]) {
         if (glob.inTransaction) {

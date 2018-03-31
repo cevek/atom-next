@@ -77,6 +77,7 @@ export function refType(Class: typeof Base) {
     });
 }
 
+/** @internal */
 export function setProp(Class: typeof Base, field: Field) {
     if (field.skipped) return;
     // field.added = true;
@@ -111,7 +112,7 @@ export function setProp(Class: typeof Base, field: Field) {
         },
     });
 }
-
+/** @internal */
 export function setCalcProp(Class: typeof Base, prop: string, method: () => {}) {
     Object.defineProperty(Class.prototype, prop, {
         get: function(this: Base) {

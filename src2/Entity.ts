@@ -1,4 +1,4 @@
-import { getRootStore, getRootStoreOrThrow, TreeMeta } from './TreeMeta';
+import { getRootStoreOrThrow, TreeMeta } from './TreeMeta';
 import { ClassMeta } from './ClassMeta';
 import { toJSON } from './Utils';
 import { AtomValue } from './Atom';
@@ -20,7 +20,7 @@ export class Base {
         this.validateClass();
         bindActions(this);
     }
-
+    /** @internal */
     protected validateClass() {
         const Class = this.constructor as typeof Base;
         const classMeta = this._classMeta;

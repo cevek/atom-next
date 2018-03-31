@@ -1,12 +1,13 @@
 import { Base } from './Entity';
 import { RootStore } from './RootStore';
 
+/** @internal */
 export class TreeMeta<T = {}> {
     parent: TreeMeta | undefined = undefined;
     json: {} | undefined = undefined;
     atoms: { [key: string]: {} } = {};
 }
-
+/** @internal */
 export function clearParentsJson(treeMeta: TreeMeta) {
     let t: TreeMeta | undefined = treeMeta;
     while (t !== undefined && t.json !== undefined) {
@@ -14,6 +15,7 @@ export function clearParentsJson(treeMeta: TreeMeta) {
         t = t.parent;
     }
 }
+/** @internal */
 export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     let t: TreeMeta | undefined = treeMeta;
     while (t !== undefined) {
@@ -24,6 +26,7 @@ export function getRootStore(treeMeta: TreeMeta): RootStore | undefined {
     }
     return;
 }
+/** @internal */
 export function getRootStoreOrThrow(treeMeta: TreeMeta): RootStore {
     const rootStore = getRootStore(treeMeta);
     if (rootStore === undefined) {
@@ -31,7 +34,7 @@ export function getRootStoreOrThrow(treeMeta: TreeMeta): RootStore {
     }
     return rootStore;
 }
-
+/** @internal */
 export function attachObject(current: {}, value: {}, prevValue: {} | undefined) {
     const valueTreeMeta = getObjTreeMeta(value);
     if (value === prevValue) return;
@@ -50,14 +53,14 @@ export function attachObject(current: {}, value: {}, prevValue: {} | undefined) 
         }
     }
 }
-
+/** @internal */
 export function getObjTreeMeta<T>(obj: {} | undefined) {
     if (obj instanceof Object) {
         return (obj as Base)._treeMeta;
     }
     return;
 }
-
+/** @internal */
 export function detachObject(item: {} | undefined) {
     const treeMeta = getObjTreeMeta(item);
     if (treeMeta !== undefined) {

@@ -1,3 +1,4 @@
+/** @internal */
 export interface ReflectClassResult {
     props: string[];
     prototype: (
@@ -5,6 +6,7 @@ export interface ReflectClassResult {
         | { type: 'prop'; name: string; value: {} })[];
 }
 
+/** @internal */
 export function reflectClass(Class: Function): ReflectClassResult {
     const prototype = getPrototypeInfo(Class);
     const props = parseFieldsFromCtor(Class, prototype);
