@@ -5,6 +5,11 @@ export const enum AtomState {
     MAYBE_DIRTY = 'MAYBE_DIRTY',
     DIRTY = 'DIRTY',
 }
+
+export class ErrBox {
+    constructor(public error: {}) {}
+}
+
 // make monomorphic object array
 function createEmptyArray<T>(): T[] {
     const arr = [undefined!] as T[];
@@ -43,6 +48,7 @@ class TransactionManager {
     private stack: Transaction[] = [this.current];
     private pos = 0;
     digestRunning = false;
+    wait = false;
     start(atom: AtomCalc) {
         if (this.pos === this.stack.length - 1) {
             this.stack.push(new Transaction(this.transactionIdIdx++, atom));
@@ -84,9 +90,9 @@ class TransactionManager {
     }
 }
 
-const trxManager = new TransactionManager();
+export const trxManager = new TransactionManager();
 
-const updateList = { list: [] as AtomValue[], pos: 0 };
+const updateList = { list: [] as Atom[], pos: 0 };
 
 export function run() {
     if (trxManager.current.atom !== undefined || trxManager.digestRunning) return;
@@ -252,6 +258,9 @@ export function autorun<T>(calcFun: () => T) {
 }
 
 function getCalc<T>(atom: AtomCalc<T>) {
+    if (atom.value instanceof ErrBox) {
+        throw atom.value.error;
+    }
     if (calcIfNeeded(atom)) {
         setChildrenMaybeDirtyState(atom);
     }
@@ -259,7 +268,7 @@ function getCalc<T>(atom: AtomCalc<T>) {
     return atom.value;
 }
 
-function setValue(atom: AtomValue, value: {}) {
+function setValue(atom: Atom, value: {}) {
     atom.value = value;
     updateList.list[updateList.pos++] = atom;
     return setChildrenMaybeDirtyState(atom);
@@ -286,7 +295,16 @@ export class AtomCalc<T = {}> {
         detachCalc(this);
     }
 
+    set(value: T) {
+        if (value !== this.value) {
+            this.state = AtomState.ACTUAL;
+            return setValue(this, value);
+        }
+        return false;
+    }
+
     get(): T {
+        trxManager.wait = false;
         return getCalc<T>(this);
     }
 
@@ -319,6 +337,7 @@ export class AtomValue<T = {}> {
     }
 
     get() {
+        trxManager.wait = false;
         trxManager.current.addMaster(this);
         return this.value;
     }
