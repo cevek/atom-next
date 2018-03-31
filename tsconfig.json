@@ -1,14 +1,22 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
-        "target": "es6",
+        "importHelpers": true,
+        "module": "esnext",
+        "target": "esnext",
         "outDir": "dist",
         "jsx": "react",
         "strict": true,
-        "skipLibCheck": true,
         "sourceMap": true,
+        "stripInternal": true,
         "experimentalDecorators": true,
-        "suppressImplicitAnyIndexErrors": true
+        "suppressImplicitAnyIndexErrors": true,
+        "plugins": [
+            {
+                "customTransformers": {
+                    "before": ["./transformer/typescript.ts"]
+                }
+            }
+        ]
     },
     "files": ["src2/example.tsx"]
 }

@@ -2,8 +2,11 @@
   "name": "atom-next",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/*"
+  ],
   "scripts": {},
   "repository": {
     "type": "git",
@@ -16,20 +19,21 @@
     "url": "https://github.com/cevek/atom-next/issues"
   },
   "homepage": "https://github.com/cevek/atom-next#readme",
-  "devDependencies": {
-    "typescript": "^2.8.0-dev.20180308"
-  },
   "dependencies": {
     "@types/prop-types": "^15.5.2",
     "@types/react": "^16.0.40",
     "@types/react-dom": "^16.0.4",
-    "@types/react-redux": "^5.0.15",
     "prop-types": "^15.6.1",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
-    "react-redux": "^5.0.7",
+    "tslib": "^1.9.0"
+  },
+  "devDependencies": {
     "remotedev": "^0.2.7",
-    "ts-loader": "^4.0.1",
-    "webpack": "^4.1.1"
+    "rollup": "^0.57.1",
+    "rollup-plugin-node-resolve": "^3.3.0",
+    "ts-loader": "^4.1.0",
+    "ttypescript": "^1.0.7",
+    "typescript": "^2.9.0-dev.20180325"
   }
 }
