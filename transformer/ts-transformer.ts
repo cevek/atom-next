@@ -4,16 +4,30 @@ import { relative } from 'path';
 const names = {
     treeMeta: '___treeMeta' as ts.__String,
     skip: 'skip',
-    fields: '__fields',
+    staticFields: '__fields',
     Base: 'Base',
     classPrefix: '__',
+    fields: {
+        name: 'name',
+        type: 'type',
+        readonly: 'readonly',
+        args: 'args',
+    },
 };
 
-export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transformer<ts.SourceFile> => {
+export default (ctx: ts.TransformationContext, program?: ts.Program): ts.Transformer<ts.SourceFile> => {
     return sourceFile => {
+        if (!program) {
+            program = ts.createProgram([sourceFile.fileName], {
+                module: ts.ModuleKind.ESNext,
+                target: ts.ScriptTarget.Latest,
+                strict: true,
+            });
+        }
         const checker = program.getTypeChecker();
         const imports = new Set<ts.Symbol>();
         const assignedSymbols = new Set<ts.Symbol>();
+        const classSymbols = checker.getSymbolsInScope(sourceFile, ts.SymbolFlags.Class);
         function visitor(node: ts.Node): ts.Node {
             node = ts.visitEachChild(node, visitor, ctx);
             if (ts.isClassDeclaration(node)) {
@@ -22,12 +36,20 @@ export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transfor
                 let props: ts.Expression[] | undefined = undefined;
                 // debugger;
                 if (classType && classSymbol && classSymbol.members) {
-                    const basedTypes = checker.getBaseTypes(classType);
-                    if (
-                        basedTypes &&
-                        basedTypes.some(type => !!type.symbol && type.symbol.escapedName === names.Base)
-                    ) {
-                        props = [];
+                    let base: ts.BaseType | undefined = classType;
+                    let isExtendedBase = false;
+                    while (base) {
+                        base = checker.getBaseTypes(base as ts.InterfaceType)[0];
+                        if (base && base.symbol && base.symbol.escapedName === names.Base) {
+                            isExtendedBase = true;
+                            break;
+                        }
+                    }
+                    // console.log(classSymbol.escapedName, isExtendedBase);
+                    if (isExtendedBase) {
+                        const superFieldsNode = ts.createPropertyAccess(ts.createSuper(), ts.createIdentifier(names.staticFields));
+                        const prevFields = ts.createSpread(ts.createCall(superFieldsNode, undefined, []));
+                        props = [prevFields];
                         classSymbol.members.forEach((propSymbol, key) => {
                             if (propSymbol.escapedName === names.treeMeta) return;
                             if (!propSymbol.declarations) return;
@@ -43,7 +65,11 @@ export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transfor
                                     return;
                                 }
                                 props!.push(
-                                    typeToObj(propSymbol.escapedName as string, type, !assignedSymbols.has(propSymbol))
+                                    createObj({
+                                        [names.fields.name]: propSymbol.escapedName as string,
+                                        [names.fields.readonly]: !assignedSymbols.has(propSymbol),
+                                        [names.fields.type]: typeToJS(type),
+                                    })
                                 );
                             }
                         });
@@ -55,7 +81,7 @@ export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transfor
                         undefined,
                         [ts.createModifier(ts.SyntaxKind.StaticKeyword)],
                         undefined,
-                        names.fields,
+                        names.staticFields,
                         undefined,
                         undefined,
                         [],
@@ -95,7 +121,9 @@ export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transfor
 
         const res = ts.visitNode(sourceFile, visitor);
         const importNodes = [];
+        // console.log(classSymbols);
         for (const symbol of imports) {
+            if (classSymbols.indexOf(symbol) > -1) continue;
             // if (!symbol.declarations || !symbol.declarations[0]) continue;
             const importedSourceFile = symbol.declarations![0].parent as ts.SourceFile;
             const path = importedSourceFile.fileName;
@@ -146,45 +174,29 @@ export default (ctx: ts.TransformationContext, program: ts.Program): ts.Transfor
             return ts.createObjectLiteral(props);
         }
 
-        function typeToObj(
-            fieldName: string | undefined,
-            type: ts.Type,
-            readonly?: boolean
-        ): ts.ObjectLiteralExpression {
-            const symbol = type.symbol;
-            if (!symbol) {
+        function typeToJS(type: ts.Type): ts.Expression {
+            let symbol = type.symbol;
+            let args = (type as ts.TypeReference).typeArguments;
+            if (type.aliasSymbol) {
+                symbol = type.aliasSymbol;
+                args = type.aliasTypeArguments;
+            }
+            if (symbol) {
+                const symbolName = symbol.escapedName as string;
+                const objectFlags = (type as ts.ObjectType).objectFlags;
+                let jsType: ts.Expression = ts.createLiteral(symbolName);
+                if (objectFlags & ts.ObjectFlags.Class) {
+                    imports.add(symbol);
+                    jsType = ts.createIdentifier(
+                        (classSymbols.indexOf(symbol) === -1 ? names.classPrefix : '') + symbolName
+                    );
+                }
                 return createObj({
-                    name: fieldName,
-                    readonly,
-                    type: checker.typeToString(type),
+                    [names.fields.type]: jsType,
+                    [names.fields.args]: args ? args.map(typeToJS) : undefined,
                 });
             }
-            const objectFlags = (type as ts.ObjectType).objectFlags;
-            if (
-                (objectFlags & ts.ObjectFlags.Reference && symbol.escapedName === 'Map') ||
-                symbol.escapedName === 'Array'
-            ) {
-                const args = (type as ts.TypeReference).typeArguments;
-                return createObj({
-                    name: fieldName,
-                    type: ts.createIdentifier(symbol.escapedName as string),
-                    args: args ? args.map(t => typeToObj(undefined, t)) : undefined,
-                    readonly,
-                });
-            }
-            if (objectFlags & ts.ObjectFlags.Class) {
-                imports.add(symbol);
-                return createObj({
-                    name: fieldName,
-                    readonly,
-                    type: ts.createIdentifier((names.classPrefix + symbol.escapedName) as string),
-                });
-            }
-            return createObj({
-                name: fieldName,
-                readonly,
-                type: checker.typeToString(type),
-            });
+            return ts.createLiteral(checker.typeToString(type));
         }
     };
 };
