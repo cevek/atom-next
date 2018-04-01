@@ -1,7 +1,5 @@
-import { get, skip } from './Decorators';
 import { Base } from './Entity';
-import { array, arrayType } from './Array';
-import { hash, hashType } from './HashMap';
+import { get, skip, array, arrayType, hash, hashType } from './Decorators';
 import { JSONType, PartialJSONType, sub } from './EntityUtils';
 import { RootStore } from './RootStore';
 import { AtomCalc, AtomValue } from './Atom';

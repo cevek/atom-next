@@ -5,7 +5,7 @@ import { checkWeAreInAction, toJSON } from './Utils';
 import { createField } from './Field';
 import { Base } from './Entity';
 import { calc, prop } from './Decorators';
-import { addField, buildElementClassMeta } from './EntityUtils';
+import { DepsFix } from './DepsFix';
 
 function mutate(map: HashMap) {
     clearParentsJson(getObjTreeMeta(map)!);
@@ -166,19 +166,6 @@ export class HashMap<T = {}> extends Base implements Map<string | number, T> {
     }
 }
 HashMap.prototype._classMeta = new ClassMeta({});
+DepsFix.HashMap = HashMap;
 
-export function hash<T>(Cls: typeof Base | ClassMeta | undefined) {
-    return function<Prop extends string, Trg extends Base /* & Record<Prop, Map<number | string, T> | undefined>*/>(
-        targetProto: Trg,
-        prop: Prop
-    ) {
-        addField(targetProto, prop, hashType(Cls));
-    };
-}
 
-export function hashType<T>(Class?: typeof Base | ClassMeta) {
-    const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta({
-        setTransformer: (rootStore, json, prev) => HashMap.factory(elementClassMeta, json, prev as HashMap),
-    });
-}

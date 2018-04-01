@@ -1,11 +1,9 @@
 import { ClassMeta } from './ClassMeta';
 import { Base } from './Entity';
-import { setCalcProp, setProp } from './Decorators';
+import { arrayType, hashType, setCalcProp, setProp } from './Decorators';
 import { createField, Field } from './Field';
 import { ReflectClassResult } from './ReflectClass';
 import { createActionFactory } from './CreateActionFactory';
-import { arrayType } from './Array';
-import { hashType } from './HashMap';
 import { refType } from './Ref';
 import { hasOwn } from './Utils';
 

@@ -4,7 +4,7 @@ import { ClassMeta, getClassMetaFromObj, getTransformValue, setTransformValue } 
 import { createField } from './Field';
 import { Base } from './Entity';
 import { prop } from './Decorators';
-import { addField, buildElementClassMeta } from './EntityUtils';
+import { DepsFix } from './DepsFix';
 
 function mutate<Ret>(arr: ArrayProxy) {
     arr._version++;
@@ -139,6 +139,7 @@ export class ArrayProxy<T = {}> extends Base {
     }
 }
 ArrayProxy.prototype._classMeta = new ClassMeta({});
+DepsFix.ArrayProxy = ArrayProxy;
 
 const immutableMethods = [
     'toString',
@@ -171,21 +172,4 @@ for (let i = 0; i < immutableMethods.length; i++) {
         }
         return fn.apply(values, arguments);
     };
-}
-
-export function array<T>(Cls: typeof Base | ClassMeta) {
-    return function<Prop extends string, Trg extends Base & Record<Prop, T[] | undefined>>(
-        targetProto: Trg,
-        prop: Prop
-    ) {
-        addField(targetProto, prop, arrayType(Cls));
-    };
-}
-
-export function arrayType(Class?: typeof Base | ClassMeta) {
-    const elementClassMeta = buildElementClassMeta(Class);
-    return new ClassMeta({
-        setTransformer: (rootStore, json, prev) =>
-            ArrayProxy.factory(elementClassMeta, json as {}[], prev as ArrayProxy),
-    });
 }

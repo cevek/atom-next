@@ -1,11 +1,13 @@
 import { toJSON } from './Utils';
 import { Base } from './Entity';
+import './Array';
+import './HashMap';
 import { glob } from './Glob';
 import { run } from './Atom';
-import { hash, HashMap, hashType } from './HashMap';
+import { HashMap } from './HashMap';
 import { attachObject, detachObject, getObjTreeMeta, TreeMeta } from './TreeMeta';
-import { skip } from './Decorators';
-import { getClassMetaOfEntity, JSONType, PartialJSONType } from './EntityUtils';
+import { hash, hashType, skip } from './Decorators';
+import { getClassMetaOfEntity, JSONType } from './EntityUtils';
 
 /** @internal */
 export type ReduxStore<T> = {
@@ -85,7 +87,7 @@ class LocalRootStore {
 export class RootStore extends Base {
     /** @internal */
     @hash(hashType())
-    private instanceMap = new Map<string, Map<string | number, Base>>();
+    private instanceMap = new Map<string, Map<string | number, {}>>();
     /** @internal */
     @skip private _tempComponentStore = new LocalRootStore(this);
     /** @internal */

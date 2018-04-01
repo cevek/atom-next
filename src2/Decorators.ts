@@ -1,11 +1,12 @@
 import { attachObject, clearParentsJson, getRootStore, TreeMeta } from './TreeMeta';
-import { getTransformValue, setTransformValue } from './ClassMeta';
+import { ClassMeta, getTransformValue, setTransformValue } from './ClassMeta';
 import { createField, Field } from './Field';
 import { KeyedAtomCalc } from './KeyedAtomCalc';
 import { Atom, AtomCalc, AtomValue } from './Atom';
 import { checkWeAreInAction } from './Utils';
 import { Base } from './Entity';
-import { addField } from './EntityUtils';
+import { addField, buildElementClassMeta } from './EntityUtils';
+import { DepsFix } from './DepsFix';
 
 /** @internal */
 export function prop(targetProto: Base, prop: string) {
@@ -102,5 +103,39 @@ export function setCalcProp(Class: typeof Base, prop: string, method: () => {}) 
             }
             return atom.get();
         },
+    });
+}
+
+export function hash<T>(Cls: typeof Base | ClassMeta | undefined) {
+    return function<Prop extends string, Trg extends Base /* & Record<Prop, Map<number | string, T> | undefined>*/>(
+        targetProto: Trg,
+        prop: Prop
+    ) {
+        addField(targetProto, prop, hashType(Cls));
+    };
+}
+
+export function hashType<T>(Class?: typeof Base | ClassMeta) {
+    const elementClassMeta = buildElementClassMeta(Class);
+    return new ClassMeta({
+        setTransformer: (rootStore, json, prev) => DepsFix.HashMap.factory(elementClassMeta, json, prev as undefined),
+    });
+}
+
+
+export function array<T>(Cls: typeof Base | ClassMeta) {
+    return function<Prop extends string, Trg extends Base & Record<Prop, T[] | undefined>>(
+        targetProto: Trg,
+        prop: Prop
+    ) {
+        addField(targetProto, prop, arrayType(Cls));
+    };
+}
+
+export function arrayType(Class?: typeof Base | ClassMeta) {
+    const elementClassMeta = buildElementClassMeta(Class);
+    return new ClassMeta({
+        setTransformer: (rootStore, json, prev) =>
+            DepsFix.ArrayProxy.factory(elementClassMeta, json as {}[], prev as undefined),
     });
 }
