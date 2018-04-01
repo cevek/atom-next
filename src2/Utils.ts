@@ -15,3 +15,7 @@ export function checkWeAreInAction() {
 export function neverPossible(): never {
     throw new Error('Never possible');
 }
+
+export function hasOwn<T>(obj: T, key: keyof T) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+}

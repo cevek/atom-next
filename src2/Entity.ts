@@ -1,6 +1,6 @@
 import { getRootStoreOrThrow, TreeMeta } from './TreeMeta';
 import { ClassMeta } from './ClassMeta';
-import { toJSON } from './Utils';
+import { hasOwn, toJSON } from './Utils';
 import { AtomValue } from './Atom';
 import {
     addField,
@@ -36,7 +36,7 @@ export class Base {
         if (!classMeta.finished) {
             classMeta.finished = true;
             const { prototype, props } = reflectClass(Class);
-            if (typeof Class.__fields === 'function') {
+            if (hasOwn(Class, '__fields')) {
                 const fields = Class.__fields();
                 for (let i = 0; i < fields.length; i++) {
                     const genField = fields[i];
@@ -80,7 +80,7 @@ export class Base {
             for (let i = 0; i < classMeta.fields.length; i++) {
                 const field = classMeta.fields[i];
                 if (field.skipped) continue;
-                if (partial && !json.hasOwnProperty(field.name)) continue;
+                if (partial && !hasOwn(json, field.name as keyof typeof json)) continue;
                 this[field.name] = json[field.name];
             }
         }
@@ -125,5 +125,7 @@ export class Base {
     }
 
     /** @internal */
-    static __fields?: () => GeneratedField[];
+    static __fields(): GeneratedField[] {
+        return [];
+    }
 }

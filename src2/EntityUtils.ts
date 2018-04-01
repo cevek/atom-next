@@ -7,6 +7,7 @@ import { createActionFactory } from './CreateActionFactory';
 import { arrayType } from './Array';
 import { hashType } from './HashMap';
 import { refType } from './Ref';
+import { hasOwn } from './Utils';
 
 /** @internal */
 export function getClassMetaOfEntity(Class: typeof Base) {
@@ -15,8 +16,7 @@ export function getClassMetaOfEntity(Class: typeof Base) {
         throw new Error('Class ' + Class.name + ' is not extended Base class');
     }
     let classMeta: ClassMeta | undefined = proto._classMeta;
-    const _classMetaProp: keyof typeof proto = '_classMeta';
-    if (!proto.hasOwnProperty(_classMetaProp)) {
+    if (!hasOwn(proto, '_classMeta')) {
         if (classMeta === undefined) {
             classMeta = new ClassMeta({});
         } else {
