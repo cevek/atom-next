@@ -2,7 +2,16 @@ import { getRootStoreOrThrow, TreeMeta } from './TreeMeta';
 import { ClassMeta } from './ClassMeta';
 import { toJSON } from './Utils';
 import { AtomValue } from './Atom';
-import { bindActions, PartialJSONType, setMethods, setPropsGetters } from './EntityUtils';
+import {
+    addField,
+    bindActions,
+    createPropClassMetaFromGenType,
+    GeneratedField,
+    getClassMetaOfEntity,
+    PartialJSONType,
+    setMethods,
+    setPropsGetters,
+} from './EntityUtils';
 import { RootStore } from './RootStore';
 import { reflectClass } from './ReflectClass';
 
@@ -23,14 +32,28 @@ export class Base {
     /** @internal */
     protected validateClass() {
         const Class = this.constructor as typeof Base;
-        const classMeta = this._classMeta;
-        if (classMeta === undefined) {
-            throw new Error('This class is not belongs to any other class');
-        }
+        const classMeta = getClassMetaOfEntity(Class);
         if (!classMeta.finished) {
             classMeta.finished = true;
             const { prototype, props } = reflectClass(Class);
-            setPropsGetters(Class, classMeta, props);
+            if (typeof Class.__fields === 'function') {
+                const fields = Class.__fields();
+                for (let i = 0; i < fields.length; i++) {
+                    const genField = fields[i];
+                    const field = addField(
+                        Class.prototype,
+                        genField.name,
+                        createPropClassMetaFromGenType(genField.type)
+                    );
+                    // field.readonly = !!genField.readonly;
+                }
+            } else {
+                for (let i = 0; i < props.length; i++) {
+                    const prop = props[i];
+                    addField(Class.prototype, prop, undefined);
+                }
+            }
+            setPropsGetters(Class, classMeta);
             setMethods(Class, classMeta, prototype);
         }
     }
@@ -45,7 +68,8 @@ export class Base {
         return rootStore.instances.getOrThrow(Class, id);
     }
 
-    fromJSON(json: PartialJSONType<this>) {
+    /** @internal */
+    __fromJSON(json: PartialJSONType<this>, partial = false) {
         const classMeta = this._classMeta;
         // const treeMeta = prev._treeMeta;
         if (json !== undefined) {
@@ -56,7 +80,7 @@ export class Base {
             for (let i = 0; i < classMeta.fields.length; i++) {
                 const field = classMeta.fields[i];
                 if (field.skipped) continue;
-                if (!json.hasOwnProperty(field.name)) continue;
+                if (partial && !json.hasOwnProperty(field.name)) continue;
                 this[field.name] = json[field.name];
             }
         }
@@ -80,7 +104,7 @@ export class Base {
             // console.log('new ', Class.name, instance.id);
         }
         if (json !== undefined) {
-            instance.fromJSON(json);
+            instance.__fromJSON(json);
         }
         return instance as InstanceType<T>;
     }
@@ -94,11 +118,12 @@ export class Base {
             const field = classMeta.fields[i];
             if (field.skipped) continue;
             const atom = this._treeMeta.atoms[field.name] as AtomValue | undefined;
-            if (atom !== undefined) {
-                json[field.name] = toJSON(atom.value);
-            }
+            json[field.name] = toJSON(atom === undefined ? this[field.name] : atom.value);
         }
         treeMeta.json = json;
         return json;
     }
+
+    /** @internal */
+    static __fields?: () => GeneratedField[];
 }

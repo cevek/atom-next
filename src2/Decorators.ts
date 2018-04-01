@@ -1,5 +1,5 @@
 import { attachObject, clearParentsJson, getRootStore, TreeMeta } from './TreeMeta';
-import { ClassMeta, getTransformValue, setTransformValue } from './ClassMeta';
+import { getTransformValue, setTransformValue } from './ClassMeta';
 import { createField, Field } from './Field';
 import { KeyedAtomCalc } from './KeyedAtomCalc';
 import { Atom, AtomCalc, AtomValue } from './Atom';
@@ -7,11 +7,13 @@ import { checkWeAreInAction } from './Utils';
 import { Base } from './Entity';
 import { addField } from './EntityUtils';
 
+/** @internal */
 export function prop(targetProto: Base, prop: string) {
     const field = createField(prop, undefined);
     setProp(targetProto.constructor as typeof Base, field);
 }
 
+/** @internal */
 export function calc(targetProto: Base, prop: string) {
     const method = Object.getOwnPropertyDescriptor(targetProto, prop)!.get;
     if (method === undefined) {
@@ -52,31 +54,6 @@ export function skip<T>(targetProto: Base, prop: string) {
     field.skipped = true;
 }
 
-export function ref<T>(Class: typeof Base) {
-    return function<Prop extends string, Trg extends Base /* & Record<Prop, Map<number | string, T> | undefined>*/>(
-        targetProto: Trg,
-        prop: Prop
-    ) {
-        addField(targetProto, prop, refType(Class));
-    };
-}
-
-export function refType(Class: typeof Base) {
-    return new ClassMeta({
-        setTransformer: (rootStore, value) => {
-            if (value instanceof Base) {
-                return value.id;
-            }
-            throw new Error('Value is not instance of the Base class');
-        },
-        getTransformer: (rootStore, value) => {
-            if (rootStore !== undefined) {
-                return rootStore.instances.get(Class, value as string);
-            }
-        },
-    });
-}
-
 /** @internal */
 export function setProp(Class: typeof Base, field: Field) {
     if (field.skipped) return;
@@ -88,7 +65,8 @@ export function setProp(Class: typeof Base, field: Field) {
             const treeMeta = this._treeMeta;
             let atom = treeMeta.atoms[prop] as AtomValue;
             if (atom === undefined) {
-                return undefined;
+                atom = new AtomValue<{}>(undefined!, Class.name + '.' + prop);
+                treeMeta.atoms[prop] = atom;
             }
             return getTransformValue(getRootStore(treeMeta), field, atom.get());
         },
@@ -112,6 +90,7 @@ export function setProp(Class: typeof Base, field: Field) {
         },
     });
 }
+
 /** @internal */
 export function setCalcProp(Class: typeof Base, prop: string, method: () => {}) {
     Object.defineProperty(Class.prototype, prop, {

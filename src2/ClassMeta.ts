@@ -26,6 +26,16 @@ export class ClassMeta {
         this.setTransformer = setTransformer;
         this.getTransformer = getTransformer;
     }
+    /** @internal */
+    clone() {
+        return new ClassMeta({
+            fields: this.fields.slice(),
+            actions: this.actions.slice(),
+            finished: false,
+            setTransformer: this.setTransformer,
+            getTransformer: this.getTransformer,
+        });
+    }
 }
 /** @internal */
 export function getOrCreateField(classMeta: ClassMeta, name: string, fieldClassMeta: ClassMeta | undefined) {

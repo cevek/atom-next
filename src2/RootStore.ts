@@ -89,27 +89,29 @@ export class RootStore extends Base {
     /** @internal */
     @skip private _tempComponentStore = new LocalRootStore(this);
     /** @internal */
-    @skip private options!: RootStoreOptions;
+    @skip private options: RootStoreOptions = {};
 
-    constructor(options: RootStoreOptions = {}) {
+    constructor() {
         super();
-        this.options = options;
         getObjTreeMeta(this)!.parent = (this as {}) as TreeMeta;
-        if (options.remotedev !== undefined) {
-            const remoteDev = options.remotedev;
+    }
+
+    private applyRemoteDev() {
+        const remoteDev = this.options.remotedev;
+        if (remoteDev !== undefined) {
             const conn = remoteDev.connectViaExtension();
             conn.subscribe(message => this.setState(remoteDev.extractState(message) as JSONType<this>));
             this.subscribe((action, state) => conn.send(action, state));
         }
     }
 
-    static create<T extends typeof Base>(
-        this: T,
-        json?: PartialJSONType<InstanceType<T>>
-        // options: RootStoreOptions = {}
-    ): InstanceType<T> {
-        // instance.options = options;
-        return super.create(json) as InstanceType<T>;
+    static init(options: RootStoreOptions = {}) {
+        const instance = this.create() as RootStore;
+        instance.options = options;
+        if (options.remotedev !== undefined) {
+            instance.applyRemoteDev();
+        }
+        return instance;
     }
 
     /** @internal */
@@ -136,7 +138,7 @@ export class RootStore extends Base {
             const currentState = toJSON(this);
             if (currentState !== state && state !== undefined) {
                 this._tempComponentStore.reset();
-                this.fromJSON(state);
+                this.__fromJSON(state);
                 run();
             }
         } finally {

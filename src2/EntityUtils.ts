@@ -4,6 +4,9 @@ import { setCalcProp, setProp } from './Decorators';
 import { createField, Field } from './Field';
 import { ReflectClassResult } from './ReflectClass';
 import { createActionFactory } from './CreateActionFactory';
+import { arrayType } from './Array';
+import { hashType } from './HashMap';
+import { refType } from './Ref';
 
 /** @internal */
 export function getClassMetaOfEntity(Class: typeof Base) {
@@ -11,21 +14,21 @@ export function getClassMetaOfEntity(Class: typeof Base) {
     if (!(proto instanceof Base)) {
         throw new Error('Class ' + Class.name + ' is not extended Base class');
     }
-    let classMeta = proto._classMeta;
-    if (classMeta === undefined) {
-        classMeta = new ClassMeta({
-            setTransformer: (rootStore, json) => Class.create(json, rootStore),
-        });
+    let classMeta: ClassMeta | undefined = proto._classMeta;
+    const _classMetaProp: keyof typeof proto = '_classMeta';
+    if (!proto.hasOwnProperty(_classMetaProp)) {
+        if (classMeta === undefined) {
+            classMeta = new ClassMeta({});
+        } else {
+            classMeta = classMeta.clone();
+        }
+        classMeta.setTransformer = (rootStore, json) => Class.create(json, rootStore);
         Class.prototype._classMeta = classMeta;
     }
     return classMeta;
 }
 /** @internal */
-export function setPropsGetters(Target: typeof Base, classMeta: ClassMeta, props: string[]) {
-    for (let i = 0; i < props.length; i++) {
-        const prop = props[i];
-        addField(Target.prototype, prop, undefined);
-    }
+export function setPropsGetters(Target: typeof Base, classMeta: ClassMeta) {
     for (let i = 0; i < classMeta.fields.length; i++) {
         const field = classMeta.fields[i];
         setProp(Target, field);
@@ -71,6 +74,41 @@ export function addField(targetProto: Base, prop: string, propClassMeta: ClassMe
     }
     return field;
 }
+
+/** @internal */
+export type GeneratedType = {
+    type: string | typeof Base | GeneratedType;
+    args?: GeneratedType[];
+};
+
+/** @internal */
+export interface GeneratedField extends GeneratedType {
+    name: string;
+    readonly?: boolean;
+}
+
+/** @internal */
+export function createPropClassMetaFromGenType(genType: GeneratedType | typeof Base | string): ClassMeta | undefined {
+    let propClassMeta = undefined;
+    if (typeof genType === 'string') return propClassMeta;
+    if (typeof genType === 'function') return getClassMetaOfEntity(genType);
+    if (typeof genType.type === 'function') {
+        propClassMeta = getClassMetaOfEntity(genType.type);
+    } else if (genType.type === 'Array') {
+        propClassMeta = arrayType(createPropClassMetaFromGenType(genType.args![0]));
+    } else if (genType.type === 'Map') {
+        propClassMeta = hashType(createPropClassMetaFromGenType(genType.args![1]));
+    } else if (genType.type === 'Ref') {
+        if (typeof genType.args![0].type !== 'function') {
+            throw new Error('Ref argument is not a class type');
+        }
+        propClassMeta = refType(genType.args![0].type as typeof Base);
+    } else if (genType.type === undefined) {
+        throw new Error('Cyclic dependency');
+    }
+    return propClassMeta;
+}
+
 /** @internal */
 export type Methods<T> = { [P in keyof T]: T[P] extends Function ? P : never }[keyof T];
 export type JSONType<T> = T extends object
